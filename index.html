@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<meta name="description" content="An Oregon Trail parody about building six kilometres of highway east of Golden, BC, under the watchful eye of Andy Smith.">
+<title>Selkirk Trail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#000;color-scheme:dark}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+body{position:fixed;inset:0}
+canvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer;outline:none;touch-action:none;
+ width:min(100vw,133.33vh);height:min(75vw,100vh)}
+@media (orientation:portrait){canvas{width:min(100vh,133.33vw);height:min(75vh,100vw);transform:translate(-50%,-50%) rotate(90deg)}}
+</style>
+</head>
+<body><canvas id="c" width="1280" height="960" tabindex="0"></canvas>
+<script>
+'use strict';
+// ============================================================
+//  SELKIRK TRAIL  -  a Golden, BC construction tragedy
+//  (an Oregon Trail homage; single file, no assets)
+// ============================================================
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const TOUCH=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+const HINT=TOUCH?'Tap to continue.':'Press ENTER to continue.';
+let HIT=[];  // tappable zones rebuilt every frame: {x0,x1,y0,y1,key}
+// Access gate: active everywhere except localhost / file://. Code is stored as a SHA-256 hash; change it with: node -e "console.log(require('crypto').createHash('sha256').update('NEWCODE').digest('hex'))"
+const GATE={on:!['localhost','127.0.0.1',''].includes(location.hostname),hash:'a047f2788d705e78a5ed5771aba37362bb9100245b5d9e4b9c465df798c77e31'};
+async function sha256(str){const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');}
+function gateOpen(){try{return !GATE.on||localStorage.getItem('selkirk-gate')===GATE.hash;}catch(_){return !GATE.on;}}
+async function askGate(){const v=prompt('Site access code:');if(v===null)return;const h=await sha256(v.trim().toUpperCase().replace(/s+/g,''));if(h===GATE.hash){try{localStorage.setItem('selkirk-gate',h);}catch(_){}S.screen='title';S.sel=0;}else{S.gateMsg=rnd(['Wrong code. Andy has been notified.','Wrong code. Mel would like a memo.','Wrong code. Tanya has shut down the site.']);}}
+const PX=4;                       // logical pixel scale (320x186 scene)
+const SW=320,SH=186;
+function P(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x)*PX,Math.round(y)*PX,Math.round(w)*PX,Math.round(h)*PX);}
+function L(x1,y1,x2,y2,c,w){ctx.strokeStyle=c;ctx.lineWidth=(w||1)*PX;ctx.beginPath();ctx.moveTo(x1*PX,y1*PX);ctx.lineTo(x2*PX,y2*PX);ctx.stroke();}
+function txt(s,x,y,size,color,align){ctx.font=size+'px "VT323", "Courier New", monospace';ctx.fillStyle=color||'#fff';ctx.textAlign=align||'left';ctx.textBaseline='top';ctx.fillText(s,x,y);}
+function wrap(s,max){const out=[];for(const para of String(s).split('\n')){let line='';for(const w of para.split(' ')){if((line+' '+w).trim().length>max){out.push(line.trim());line=w;}else line+=' '+w;}out.push(line.trim());}return out;}
+function fmt(n){n=Math.round(n);const neg=n<0;n=Math.abs(n);let s=n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1000?'$'+Math.round(n/1000)+'K':'$'+n;return (neg?'-':'')+s;}
+function fmtFull(n){return (n<0?'-':'')+'$'+Math.abs(Math.round(n)).toLocaleString('en-CA');}
+function rnd(a){return a[Math.floor(Math.random()*a.length)];}
+function pickW(arr){let t=0;for(const e of arr)t+=e.w;let r=Math.random()*t;for(const e of arr){r-=e.w;if(r<=0)return e;}return arr[arr.length-1];}
+// seeded scenery
+let seed=1234;function srand(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;}
+const STARS=[];for(let i=0;i<90;i++)STARS.push({x:Math.floor(srand()*320),y:Math.floor(srand()*80),b:srand()});
+const TREES=[];for(let i=0;i<46;i++)TREES.push({x:Math.floor(srand()*320),y:80+Math.floor(srand()*10)});
+const SPECK=[];for(let i=0;i<70;i++)SPECK.push({x:srand(),y:srand()});
+const FLAKES=[];for(let i=0;i<80;i++)FLAKES.push({x:srand()*320,y:srand()*186,v:0.5+srand()});
+const DOTS=[];for(let i=0;i<260;i++)DOTS.push({x:Math.floor(srand()*320),y:106+Math.floor(srand()*80)});
+
+// ---------------- palette ----------------
+const NIGHT={sky:'#000',m1:'#1e2470',m2:'#2c39a8',m3:'#4550c0',snow:'#d9dfff'};
+const DAY={sky:'#4f95e0',m1:'#3d5aa8',m2:'#5372c9',m3:'#7b93d9',snow:'#f2f5ff'};
+const C={grass:'#1d7a1d',grass2:'#166316',tree:'#0f4d14',trunk:'#3a2a10',dirt:'#7a4a1c',dirt2:'#5e3812',dirt3:'#8f5a26',dirt4:'#3f2408',
+ water:'#1f6fe0',water2:'#8fc4ff',road:'#8d8d8d',road2:'#6f6f6f',dash:'#f2c400',grey:'#9a9a9a',grey2:'#6f6f6f',grey3:'#c4c4c4',
+ girder:'#8b3a1c',girder2:'#b04a22',girder3:'#4d1e0c',yellow:'#f2c400',yellow2:'#c99d00',black:'#111',white:'#fff',orange:'#ff7a00',
+ blue:'#2255ff',blue2:'#7aa0ff',blue3:'#1233b0',rust:'#a5522a',skin:'#e8b48a',glass:'#9fd8ff',bear:'#5a3a1a',bear2:'#3d2610'};
+
+// ---------------- game data ----------------
+const ROLES=[
+ {name:'EllisDon Project Manager',cash:5000000,mult:1,blurb:'$5.0M mobilization allowance. Andy Smith watches you closely.'},
+ {name:'Senior PM (Calgary office)',cash:8000000,mult:0.75,blurb:'$8.0M allowance. Andy has your cell number. He uses it.'},
+ {name:'Co-op Student',cash:2000000,mult:3,blurb:'$2.0M and nobody expects anything. Triple points.'},
+];
+const PARTY_DEF=[
+ {name:'Scott',role:'Site Superintendent',hat:'#fff',shirt:'#1f6b3a'},
+ {name:'Lenny',role:'General Foreman, Earthworks',hat:'#f2c400',shirt:'#8a2a2a'},
+ {name:'Louie',role:"Foreman (one of Lenny's)",hat:'#f2c400',shirt:'#3b3b3b'},
+ {name:'Adam',role:'Labour Foreman',hat:'#f2c400',shirt:'#2a6fdb'},
+ {name:'Fredis',role:'Bridge Super (Colombia). Angry.',hat:'#fff',shirt:'#b3001b',angry:true},
+ {name:'Harsh',role:'Project Engineer (paperwork)',hat:'#fff',shirt:'#6a3fbf',clip:true},
+ {name:'Tanya',role:'Safety',hat:'#fff',shirt:'#ff7a00',vest:true},
+];
+const STORE=[
+ {key:'dozers',name:'CAT D8 Dozer',price:850000,step:1},
+ {key:'trucks',name:'CAT 40T Rock Truck',price:620000,step:1},
+ {key:'graders',name:'CAT 14M Grader',price:410000,step:1},
+ {key:'crane',name:'275T Crawler Crane (rental)',price:1400000,step:1,max:1},
+ {key:'fuel',name:'Diesel (10,000 L)',price:18000,step:10000},
+ {key:'coffee',name:'Tim Hortons coffee (case of 100)',price:250,step:100},
+ {key:'vests',name:'Hi-vis vests',price:45,step:1},
+ {key:'tracks',name:'Spare D8 track group',price:38000,step:1},
+];
+const MILESTONES=[
+ {km:1,name:'Clearing & Grubbing',deadline:10,fail:'the clearing was never finished',
+  mel:"Mel: 'You cleared forty metres each side. The permit says thirty. Put the trees back.'",
+  look:"Stumps to the horizon. Adam's labour crew is burning slash with a little too much joy. Tanya is measuring the distance to the fire."},
+ {km:2,name:'Rock Cut',deadline:22,fail:"you didn't finish the rock cut",
+  mel:"Mel: 'The blasting notice said Tuesday. It is Tuesday. It was a different Tuesday.'",
+  look:"A very large hole in a very large mountain. Lenny's crew has named the biggest boulder Gerald. Gerald is not moving."},
+ {km:3,name:'Creek Bridge',deadline:34,fail:"you didn't finish the bridge",
+  mel:"Mel: 'The abutment is 14 millimetres off. I brought my own tape.' Fredis stares at Mel. Mel leaves.",
+  look:'Two abutments and a deck over a creek you could step across in gumboots. Fredis is looking at it the way other people look at an ex.'},
+ {km:4,name:'Multiplate Wildlife Crossing',deadline:46,fail:"you didn't finish the wildlife crossing",
+  mel:"Mel: 'Where are the animals?' You explain they will come. Mel writes down 'they will come'.",
+  look:'A beautiful corrugated arch under the highway. A grizzly is already inside. He has reviews. They are mixed.'},
+ {km:5,name:'Grading & Base',deadline:57,fail:"you didn't finish the grade",
+  mel:"Mel: 'Your crossfall is two percent.' It is two percent. He checks again. He will be back.",
+  look:"Lenny's earthworks crew has moved a small mountain to where a slightly different mountain used to be. Louie is asleep in the grader."},
+ {km:6,name:'Paving & Substantial Completion',deadline:68,fail:"you didn't finish the highway",final:true,
+  mel:"Mel: 'The shoulders are 50 millimetres narrow.' They are not. You will discuss this for eleven months.",
+  look:'Fresh asphalt. A ribbon. A moose walking the detour instead of the crossing. Fredis is already in Calgary. Somewhere, Andy is composing an email.'},
+];
+const WEATHERS=[{n:'Clear',w:5},{n:'Rain',w:3},{n:'Sideways rain',w:1},{n:'Snow',w:2},{n:'Smoke',w:2},{n:'Bluebird',w:2}];
+const CONDS=['burnout','the pub flu','a bad back (WCB claim pending)','Tim Hortons withdrawal','a case of the Mondays','hypothermia (it is June)','Mel-induced anxiety'];
+const ANDY_CALLS=[
+ "Andy: 'Why are you calling me? Is the bridge done?' *click*",
+ "Andy: 'I'm looking at the burn rate. I'm going to keep looking at it.'",
+ "Andy: 'Mel emailed me. I'm forwarding it to you. Handle it.' The email is 41 pages.",
+ "Andy: 'Golden? Still? Huh.' *click*",
+ "Andy: 'I don't need excuses, I need girders.' You explain the girders are in Revelstoke. He hangs up.",
+ "Andy answers on the first ring. 'Tell me the bridge is done.' It is not. He says 'okay' in a way that is not okay.",
+];
+const INTRO=[
+ "It is 2026. You are on the Trans-Canada Highway expansion east of Golden, BC, deep in the Selkirks.\n\nEllisDon has six kilometres of highway, a multiplate wildlife crossing and one small bridge over a creek you could step across.",
+ "Andy Smith is the Construction Manager. Andy does not miss deadlines. Andy makes sure that other people do not miss deadlines. Permanently.\n\n(Killed means fired. Mostly.)",
+ "Mel is the Ministry of Transportation's man on the ground. Mel has a clipboard. Mel has opinions. Mel has never once said 'good job'.",
+ "Your crew: Scott the Site Super, Lenny the earthworks GF, his foreman Louie, Adam the labour foreman, Harsh the project engineer (his paperwork to the Ministry is, technically, paper), Tanya from Safety, and Fredis.\n\nFredis is the bridge super. Fredis is from Colombia. Fredis is angry. Fredis does not talk. Fredis leaves for Calgary.",
+ "Reach Substantial Completion by Week 68, keep the crew alive, and try to lose EllisDon less than $45 million.\n\nNobody has ever done all three.",
+];
+const ABOUT=[
+ "SELKIRK TRAIL is a loving parody of the classic Oregon Trail, relocated to a highway job in the Kicking Horse Canyon.",
+ "You build 6 km of highway, one week at a time. Events happen. Deadlines are missed. Andy notices.\n\nEach milestone has a deadline. Miss it, and Andy kills a crew member. Miss it by more than 8 weeks, and Andy kills you.",
+ "Keep diesel in the trucks, coffee in the crew, and Tanya's vests visible.\n\nKeys: ENTER to continue, number keys or arrows to choose. Any resemblance to actual construction managers is entirely the point.",
+];
+
+// Random events. cond(S) gates them; fx applies; ch = choices; run(S) returns {t,fx}; kill = Andy fires someone; on(S) side effects
+const EVENTS=[
+ {w:3,t:"A 40-ton rock truck slid off the haul road into the creek. Scott says the driver is fine. The truck is less fine. The creek is fine, it is ankle deep.",cond:s=>s.trucks>0,fx:{trucks:-1,weeks:2,loss:900000}},
+ {w:3,t:"The D8 threw a track on the rock cut.",cond:s=>s.dozers>0,ch:[
+   {l:"Wait for Finning (2 weeks, $80,000)",fx:{weeks:2,loss:80000},t:"Finning arrives in two weeks. The mechanic bills for the drive from Cranbrook. Both ways. Twice."},
+   {l:"Let Louie fix it with a pry bar and optimism",run:()=>Math.random()<0.5?{t:"Louie fixed it in three days. Nobody knows how. Lenny does not ask.",fx:{}}:{t:"Louie fixed it. Then it fell off again. Four weeks and a new final drive.",fx:{weeks:4,loss:300000}}},
+   {l:"Use the spare track group",cond:s=>s.tracks>0,fx:{tracks:-1},t:"The spare track goes on. Louie is unbearably smug for a month."}]},
+ {w:4,t:"Mel from the Ministry arrives unannounced. He has a clipboard and a look.",ch:[
+   {l:"Show him the wildlife crossing",run:s=>s.km>=4?{t:"Mel nods. He writes 'acceptable'. It is the nicest thing he has ever written.",fx:{health:5}}:{t:"There is no wildlife crossing yet. Mel writes for a long time. You are issued a Non-Conformance Report for 'vibes'.",fx:{weeks:1,loss:150000}}},
+   {l:"Distract him with a box of Timbits",cond:s=>s.coffee>=20,fx:{coffee:-20},t:"Mel eats eleven Timbits and forgets why he came. Crisis averted."},
+   {l:"Send him to talk to Fredis",cond:s=>fredisHere(),run:()=>Math.random()<0.6?{t:"Mel walks over to Fredis. Fredis looks at him. Mel walks back. Mel leaves. Mel does not come back for a month.",fx:{health:4}}:{t:"Mel walks over to Fredis. Fredis gets in his truck and drives to Calgary.",fx:{},on:s=>fredisLeaves(2)}},
+   {l:"Have Harsh hand him a binder",run:()=>Math.random()<0.5?{t:"Harsh hands Mel a binder. It is last month's binder with a new cover. Mel does not notice. Mel leaves happy.",fx:{health:3}}:{t:"Mel opens Harsh's binder. Page three is a takeout menu from the Golden Dragon. NCR.",fx:{weeks:1,loss:200000}}},
+   {l:"Hide behind the crane",fx:{weeks:1,loss:250000},t:"Mel finds you in forty seconds. He issues an NCR for 'hiding'."}]},
+ {w:4,t:"Tanya has shut down the site. Someone's hi-vis was 'more of a beige'.",ch:[
+   {l:"Hand out new vests",cond:s=>s.vests>=3,fx:{vests:-3},t:"New vests for everyone. Tanya reopens the site after a 45-minute toolbox talk about the colour orange."},
+   {l:"Argue with Tanya",fx:{weeks:1,health:-5},t:"You lost. Everyone lost. Site reopens next week. Tanya adds you to a list."}]},
+ {w:3,t:"Snow. In June. Forty centimetres of it.",fx:{weeks:1,health:-4}},
+ {w:3,t:"A grizzly has moved into the half-built wildlife crossing. The environmental monitor says 'See? It works!'",cond:s=>s.km>=3&&s.km<5,fx:{weeks:2}},
+ {w:3,t:"Design Change #47 arrives from MOTI. The creek bridge is now 1.2 metres longer. The creek is not.",cond:s=>s.km<3,fx:{weeks:3,loss:2000000}},
+ {w:2,t:"Louie found a rock that looks like a fossil. It is a rock. Archaeology hold anyway.",fx:{weeks:2,loss:120000}},
+ {w:2,t:"Someone ordered 400 cubic metres of concrete for a 40 cubic metre abutment pour. Fredis knows who. Fredis is not saying.",cond:s=>s.km>=2&&s.km<4,fx:{loss:180000}},
+ {w:2,t:"Adam's labour crew says they are two weeks ahead. Adam's labour crew has never once been right.",fx:{}},
+ {w:3,t:"Highway 1 is closed east of Golden. Again. The girder truck is stuck in Revelstoke eating a Denny's breakfast.",cond:s=>s.km>=2&&s.km<3,fx:{weeks:2,loss:220000}},
+ {w:3,t:"Rockfall on the haul road. Nobody hurt. The grader is now a shorter grader.",cond:s=>s.graders>0,fx:{graders:-1,weeks:1,loss:410000}},
+ {w:2,t:"The grader operator quit to work at Kicking Horse Resort. He says the snow is 'more reliable than the schedule'.",cond:s=>s.graders>0,fx:{weeks:1}},
+ {w:3,t:"The Tim Hortons in Golden closed for renovations. Morale has entered free fall.",fx:{coffee:-50,health:-8}},
+ {w:2,t:"A tourist in a rental RV drove into the rock cut. Then reversed and did it again.",fx:{weeks:1,loss:60000}},
+ {w:3,t:"Andy Smith calls to 'just check in'. The call lasts three hours. He asks about the bridge nine times. It is a very small bridge.",fx:{health:-5}},
+ {w:2,t:"EllisDon accounting emails asking why 14 rock trucks are fuelling on a 12-truck fleet.",fx:{loss:75000}},
+ {w:3,t:"Wildfire smoke. Air quality index: yes. Tanya issues N95s and a 90-minute lecture on breathing.",fx:{weeks:1,health:-3}},
+ {w:3,t:"The multiplate arrived. 2,000 bolts, 400 plates, and instructions in German.",cond:s=>s.km>=3&&s.km<4,ch:[
+   {l:"Let Lenny translate with his phone",run:()=>Math.random()<0.6?{t:"Lenny's phone says 'Insert the arch into the bear'. Close enough. Bolting begins.",fx:{}}:{t:"Two weeks in, the arch is upside down.",fx:{weeks:2,loss:90000}}},
+   {l:"Wait for the supplier's rep from Ontario",fx:{weeks:3,loss:40000},t:"The rep arrives, looks at it, says 'yeah', and leaves."}]},
+ {w:3,t:"The environmental monitor found a toad. All work stops for the toad. The toad is not in a hurry.",fx:{weeks:1}},
+ {w:3,t:"Freshet. The creek is now 40 centimetres deep instead of 10. Fredis has declared it 'a river' and gone to Calgary.",cond:s=>s.km>=2&&s.km<3&&fredisHere(),fx:{weeks:2,loss:300000},on:s=>fredisLeaves(2)},
+ {w:2,t:"Blasting delayed. Someone forgot to call the Ministry. Lenny says it was Louie. Louie says it was Lenny.",cond:s=>s.km<2,fx:{weeks:1,loss:35000}},
+ {w:2,t:"You found $50,000 of change orders that were never billed. Andy says 'good' for the first time in his life.",fx:{loss:-50000,health:5}},
+ {w:2,t:"Louie welded the yard gate shut. With the rock trucks inside.",cond:s=>s.trucks>0,fx:{weeks:1}},
+ {w:2,t:"The entire rock truck fleet formed a convoy to Golden for lunch. All of them. At once. Scott was leading.",cond:s=>s.trucks>=3,fx:{fuel:-2000,coffee:-20}},
+ {w:2,t:"A CN train is stopped across the site access. For six hours. The conductor is also eating a Denny's breakfast.",fx:{fuel:-500}},
+ {w:3,t:"Tanya's safety meeting ran four hours. Topic: ladders. There are no ladders on site.",fx:{health:-2}},
+ {w:2,t:"Mel approved the RFI! It was a different RFI.",fx:{}},
+ {w:2,t:"Scott found the original schedule in a drawer. Everyone laughed for a long time. Then cried a bit.",fx:{health:3}},
+ {w:1,t:"Andy Smith visited site. Someone said 'it's fine' in front of Mel. Andy now needs someone to blame.",kill:"someone said 'it's fine' in front of Mel"},
+ {w:2,t:"Diesel prices in Golden went up again. Louie is now siphoning the pickup.",fx:{fuel:-1500,loss:40000}},
+ {w:2,t:"The crane certification expired yesterday. The girders arrive today. Fredis is standing very still.",cond:s=>s.crane>0&&s.km>=2&&s.km<3,ch:[
+   {l:"Wait for the inspector from Calgary",fx:{weeks:2,loss:120000},t:"The inspector arrives, stamps it, and bills for mileage."},
+   {l:"Lift anyway, quietly",run:()=>Math.random()<0.5?{t:"Nobody noticed. Tanya noticed. Tanya always notices. Site shut for a week.",fx:{weeks:1,health:-5}}:{t:"Girders are up. You feel bad. Not that bad.",fx:{}}}]},
+ {w:2,t:"Sideways rain for eleven days. Louie's boots have become a habitat.",fx:{weeks:1,health:-3}},
+ {w:2,t:"A moose has been using the highway detour instead of the wildlife crossing. Mel would like a memo.",cond:s=>s.km>=4,fx:{loss:15000}},
+ {w:2,t:"The port-a-potty blew over in a chinook. It was occupied. Tanya has questions.",fx:{health:-2}},
+ {w:2,t:"A survey stake was moved by a marmot. Twelve metres of road are now in the wrong place. Lenny is re-shooting the alignment.",cond:s=>s.km<5,fx:{weeks:1,loss:95000}},
+ {w:2,t:"Lenny's earthworks crew hit a boulder the size of a house. Lenny wants to blast. Tanya wants a meeting. Scott wants lunch.",cond:s=>s.km>=4&&s.km<6,fx:{weeks:1,loss:140000}},
+ {w:2,t:"Adam's labour crew shovelled the wrong ditch. It is a very clean ditch. It is on the other side of the highway.",fx:{weeks:1}},
+ // ---- Harsh ----
+ {w:3,t:"Harsh submitted the QA package to the Ministry. It was 400 pages. Mel read all of it. It was 400 copies of the same page.",fx:{weeks:1,loss:90000}},
+ {w:3,t:"Harsh's RFI response cites a spec clause that does not exist. Mel has asked for the clause. Harsh is now writing the clause.",fx:{weeks:1}},
+ {w:3,t:"Harsh's daily reports say the bridge is done. The bridge is not done. Mel has driven out to look at the bridge.",cond:s=>s.km<3,fx:{loss:100000,health:-3}},
+ {w:2,t:"Harsh backdated the compaction tests. Tanya found out. Tanya has a folder now. The folder has a name.",fx:{weeks:1,health:-2}},
+ {w:2,t:"Harsh submitted the traffic management plan. It is the traffic management plan from a job in Surrey. Mel noticed. Surrey does not have avalanche gates.",fx:{loss:80000}},
+ {w:2,t:"Harsh's paperwork somehow got a change order approved. Nobody knows what it was for. Andy says not to ask.",fx:{loss:-200000,health:3}},
+ {w:2,t:"Harsh's quantity sheet shows 30,000 cubic metres of rock moved. Lenny says 12,000. Mel is bringing a drone.",cond:s=>s.km>=1&&s.km<3,fx:{weeks:1,loss:120000}},
+ {w:3,t:"Mel asks for the concrete test results. Harsh has 'test results'.",cond:s=>s.km>=2&&s.km<4,ch:[
+   {l:"Submit Harsh's test results",run:()=>Math.random()<0.55?{t:"Mel files them without reading. Harsh winks. Everyone pretends not to see the wink.",fx:{}}:{t:"Mel reads them. The cylinder IDs are from 2019. Non-Conformance Report, two weeks, and Mel now reads everything.",fx:{weeks:2,loss:180000}}},
+   {l:"Actually test the concrete",fx:{weeks:1,loss:40000},t:"The concrete is fine. It was always fine. Harsh is offended that you checked."}]},
+ // ---- Fredis ----
+ {w:4,t:"Fredis has left for Calgary. He did not say why. He did not say anything. He has never said anything.",cond:s=>fredisHere(),fx:{},on:s=>fredisLeaves(2)},
+ {w:3,t:"Fredis and Mel made eye contact. Neither has spoken since. It has been nine days.",cond:s=>fredisHere(),fx:{weeks:1}},
+ {w:2,t:"Fredis called the girder supplier and yelled in Spanish for twenty minutes. The girders will arrive a week early. Nobody thanks him. Nobody dares.",cond:s=>fredisHere()&&s.km>=2&&s.km<3,fx:{loss:-150000,health:3}},
+ {w:2,t:"Adam's labour crew tried to include Fredis in the toolbox talk. Fredis got in his truck. Fredis is now in Canmore, which is on the way to Calgary.",cond:s=>fredisHere(),fx:{},on:s=>fredisLeaves(1)},
+ {w:2,t:"Fredis slammed the trailer door so hard the survey control moved. Lenny has to re-shoot the whole alignment.",cond:s=>fredisHere(),fx:{weeks:1,loss:60000}},
+ {w:1,t:"Fredis smiled today. Everyone is terrified.",cond:s=>fredisHere(),fx:{health:2}},
+ {w:2,t:"Scott asked Fredis how the abutments were going. Fredis pointed at the abutments. They are perfect. Then he drove to Calgary.",cond:s=>fredisHere()&&s.km>=2&&s.km<4,fx:{},on:s=>fredisLeaves(1)},
+ {w:2,t:"Fredis has been gone eleven days. A postcard arrived from Calgary. It is blank.",cond:s=>fredisAlive()&&!fredisHere()&&s.fredisAway<900,fx:{}},
+];
+
+// ---------------- tuning ----------------
+const CFG={speed:0.14,evRate:0.42,illRate:0.07,burn:600000,lateKill:8};
+// ---------------- state ----------------
+let S;
+function newGame(){S={screen:'title',week:1,km:0,loss:0,cash:0,fuel:0,coffee:0,vests:6,tracks:0,trucks:0,dozers:0,graders:0,crane:0,
+ pace:0,ration:0,weather:'Clear',party:PARTY_DEF.map(p=>Object.assign({},p,{health:100,alive:true,cond:null,condWeeks:0,gone:''})),
+ graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],fredisAway:0,fredisLeftAt:0,fredisRetAt:0};}
+newGame();if(!gateOpen())S.screen='gate';
+const alive=()=>S.party.filter(p=>p.alive);
+const fredisHere=()=>{const f=S.party.find(p=>p.name==='Fredis');return !!(f&&f.alive)&&S.fredisAway<=0;};
+const fredisAlive=()=>{const f=S.party.find(p=>p.name==='Fredis');return !!(f&&f.alive);};
+const now=()=>performance.now()/1000;
+function fredisLeaves(weeks){S.fredisAway=weeks;S.fredisLeftAt=now();}
+const FREDIS_TALK=["Fredis looks at you. Fredis says nothing. Fredis gets in his truck.","You say 'Morning, Fredis.' Fredis says nothing. The silence lasts four minutes. You leave.","Fredis is on the phone in Spanish. It is not a happy call. He points east, toward Calgary.","Fredis's reply is a single word. It is not a word you know. Tanya confirms it is not a safety word.","Fredis nods. It is the most he has said all month. Scott calls it a breakthrough."];
+const burn=()=>CFG.burn*[1,1.25,1.7][S.pace];
+const PACES=['Steady (MOTI approved)','Strenuous (10s, 6 days)','Grueling (24/7, lights on)'];
+const RATIONS=['Filling (double-double)','Meager (one per shift)','Bare bones (instant)'];
+
+function show(m){S.queue.push(m);S.screen='msg';S.sel=0;S.moving=false;}
+function applyFx(fx){if(!fx)return;
+ if(fx.weeks){S.week+=fx.weeks;S.loss+=burn()*fx.weeks;}
+ if(fx.loss)S.loss+=fx.loss;
+ for(const k of ['fuel','coffee','trucks','dozers','graders','vests','tracks','crane'])if(fx[k])S[k]=Math.max(0,S[k]+fx[k]);
+ if(fx.health)for(const p of alive())p.health=Math.max(1,Math.min(100,p.health+fx.health));
+}
+function fire(reason){const a=alive();if(!a.length){gameover(reason);return;}
+ const v=rnd(a);v.alive=false;v.gone='Andy';S.fired++;S.graves.push({name:v.name,epi:reason});
+ show({t:`Andy Smith killed ${v.name} because ${reason}.`,andy:true});}
+function leave(p){p.alive=false;p.gone='quit';S.quit++;S.graves.push({name:p.name,epi:'went to the ski hill'});
+ if(p.name==='Fredis'){S.fredisAway=0;fredisLeaves(999);show({t:"Fredis went to Calgary and did not come back. He sent one text. It said 'no'."});return;}
+ show({t:`${p.name} quit to go work at Kicking Horse Resort. ${p.name} says the snow is more reliable than the schedule.`});}
+function gameover(reason){S.deathReason=reason;S.moving=false;S.screen='dead';S.queue=[];}
+function randomEvent(){const pool=EVENTS.filter(e=>!e.cond||e.cond(S));const e=pickW(pool);
+ if(e.kill){show({t:e.t,then:()=>fire(e.kill)});return;}
+ if(e.ch){show({t:e.t,ch:e.ch.filter(c=>!c.cond||c.cond(S))});return;}
+ applyFx(e.fx);if(e.on)e.on(S);show({t:e.t});}
+function illness(){const a=alive();if(!a.length)return;const p=rnd(a.filter(x=>!x.cond));if(!p)return;p.cond=rnd(CONDS);p.condWeeks=4;show({t:`${p.name} has ${p.cond}.`});}
+
+function tick(){
+ S.week++;
+ S.weather=pickW(WEATHERS).n;
+ const wf=S.weather==='Snow'?0.7:S.weather==='Smoke'?0.85:S.weather==='Sideways rain'?0.9:1;
+ const fleet=S.dozers>0?0.6+0.08*Math.min(S.trucks,6)+(S.graders>0?0.1:0):0.35;
+ const pf=[1,1.3,1.6][S.pace];
+ let speed=CFG.speed*fleet*pf*wf; if(S.fuel<=0)speed*=0.3;
+ if(S.msIndex===2&&!fredisHere())speed*=0.6;   // bridge without the bridge super
+ if(S.fredisAway>0&&S.fredisAway<900){if(--S.fredisAway<=0){S.fredisRetAt=now();show({t:rnd(["Fredis is back from Calgary. He is angrier. The abutment forms are, somehow, perfect.","Fredis returned at 4 a.m. He did not say where he was. Nobody asked. His truck has new tires.","Fredis is back. He walked past everyone, looked at the creek for an hour, and went into the trailer."])});return;}}
+ const use=(200+S.trucks*350+S.dozers*500+S.graders*250+S.crane*150)*pf;
+ const hadFuel=S.fuel>0; S.fuel=Math.max(0,S.fuel-use);
+ S.coffee=Math.max(0,S.coffee-[14,7,3][S.ration]*alive().length);
+ S.loss+=burn();
+ const dh=[-1,-2,-4][S.pace]+[2,0,-2][S.ration]+(S.coffee<=0?-4:0)+(S.weather==='Snow'?-2:0);
+ for(const p of alive()){p.health+=dh;if(p.cond){p.health-=6;if(--p.condWeeks<=0)p.cond=null;}p.health=Math.min(100,p.health);
+  if(p.health<=0){leave(p);return;}}
+ const next=MILESTONES[S.msIndex];
+ S.km=Math.min(S.km+speed,next.km);
+ if(S.km>=next.km){reachMilestone(next);return;}
+ if(S.fuel<=0&&hadFuel){applyFx({weeks:1,loss:45000,fuel:20000});show({t:"You are out of diesel. Louie siphons the pickup. A fuel truck from Golden brings 20,000 L a week later. $45,000, plus a tip."});return;}
+ if(S.coffee<=0&&Math.random()<0.25){show({t:rnd(["The crew is out of coffee. Adam has stopped blinking.","No coffee. Scott is drinking hydraulic fluid 'as a joke'. It is not a joke.","Coffee gone. Lenny has started a fire just to feel something."])});return;}
+ const r=Math.random();
+ if(r<CFG.illRate)illness(); else if(r<CFG.illRate+CFG.evRate)randomEvent();
+}
+function reachMilestone(m){S.moving=false;S.msIndex++;S.msCur=m;S.late=Math.max(0,S.week-m.deadline);
+ if(S.late>CFG.lateKill){gameover(m.fail);return;}
+ if(m.final){S.screen='win';S.page=0;return;}
+ S.screen='milestone';S.sel=0;}
+function afterMilestone(){const m=S.msCur;S.screen='travel';S.moving=true;S.ret='travel';
+ if(m.km===2&&S.crane<=0){applyFx({weeks:4,loss:2500000,crane:1});show({t:"The creek bridge is next and you have no crane. Sterling Crane sends one from Calgary: four weeks and $2,500,000. Fredis watched you not order it. He said nothing."});}
+ if(S.late>0)fire(`${m.name} finished ${S.late} week${S.late>1?'s':''} late`);}
+
+// ---------------- scene drawing ----------------
+// Layout (logical px): left ground 0..110, creek 110..210, right ground 210..320. Road surface y=100..106.
+function hw(y){const f=(y-106)/20;return 44-Math.pow(Math.max(0,Math.min(1,f)),1.3)*22;}
+function person(x,base,p){P(x+1,base-13,4,1,p.hat);P(x,base-12,6,2,p.hat);P(x+1,base-10,4,3,C.skin);if(p.angry){P(x+1,base-10,4,1,'#3a1a0a');P(x+2,base-8,2,1,'#7a1010');}P(x,base-7,6,4,p.shirt);
+ if(p.vest){P(x,base-6,6,1,'#eee');P(x,base-4,6,1,'#eee');}if(p.tie)P(x+2,base-7,1,3,'#c00');if(p.clip)P(x+6,base-8,3,4,'#fff');
+ P(x+1,base-3,2,3,p.pants||'#2a2a5a');P(x+3,base-3,2,3,p.pants||'#2a2a5a');}
+function tombstone(x,y){P(x+1,y,6,1,C.grey);P(x,y+1,8,8,C.grey);P(x+1,y+1,6,1,C.grey3);P(x+3,y+3,2,4,'#3a3a3a');P(x+2,y+4,4,1,'#3a3a3a');}
+function pickup(x,base,col,t,flash){P(x,base-10,32,7,col);P(x+16,base-16,12,6,col);P(x+17,base-15,9,4,C.glass);P(x+18,base-17,8,1,(flash&&Math.floor(t*4)%2)?'#ffd400':C.orange);if(col===C.white)P(x+1,base-9,13,1,'#ddd');
+ P(x+29,base-9,3,4,'#333');P(x+4,base-5,6,5,C.black);P(x+22,base-5,6,5,C.black);P(x+6,base-4,2,2,C.grey);P(x+24,base-4,2,2,C.grey);P(x,base-4,2,2,'#f00');}
+function dozerR(x,base,ta){P(x,base-7,24,7,'#3a3a3a');for(let i=0;i<5;i++)P(x+2+((i*5+Math.floor(ta*10))%24),base-4,2,2,C.grey);P(x+2,base-14,18,7,C.yellow);P(x+2,base-14,18,1,C.yellow2);
+ P(x+4,base-21,8,7,C.grey2);P(x+5,base-20,6,4,C.glass);P(x+15,base-19,2,5,'#222');P(x+25,base-13,4,13,C.grey);P(x+25,base-13,4,1,C.grey3);P(x-2,base-10,2,9,C.grey2);}
+function rockTruck(x,base,loaded){P(x+3,base-6,6,6,C.black);P(x+13,base-6,6,6,C.black);P(x+23,base-6,6,6,C.black);P(x+5,base-4,2,2,C.grey);P(x+15,base-4,2,2,C.grey);P(x+25,base-4,2,2,C.grey);
+ P(x+8,base-16,22,10,C.yellow);P(x+6,base-14,2,8,C.yellow);P(x+8,base-16,22,1,C.yellow2);P(x+28,base-15,2,9,C.yellow2);if(loaded){P(x+10,base-19,18,3,C.dirt3);P(x+13,base-21,12,2,C.dirt);}
+ P(x,base-13,9,8,C.yellow);P(x+1,base-12,5,4,C.glass);P(x,base-6,9,1,C.yellow2);P(x+9,base-19,1,4,C.grey2);}
+function grader(x,base){P(x+4,base-6,4,6,C.black);P(x+24,base-6,5,6,C.black);P(x+30,base-6,5,6,C.black);P(x,base-10,36,4,C.yellow);P(x+24,base-18,10,8,C.yellow2);P(x+25,base-17,8,4,C.glass);P(x+10,base-6,12,3,C.grey);P(x,base-11,4,2,C.yellow2);}
+function porta(x,base){P(x-1,base-19,12,2,C.blue2);P(x,base-18,10,18,C.blue);P(x+3,base-14,4,12,C.blue3);P(x+4,base-17,2,2,C.blue2);}
+function barricade(x,base){P(x,base-8,2,8,'#ddd');P(x+8,base-8,2,8,'#ddd');P(x-1,base-8,12,4,C.orange);P(x+1,base-8,2,4,'#fff');P(x+5,base-8,2,4,'#fff');P(x+4,base-10,2,2,'#ffd400');}
+function cone(x,base){P(x+1,base-3,1,3,C.orange);P(x,base-1,3,1,C.orange);P(x+1,base-2,1,1,'#fff');}
+function tree(x,y){P(x+2,y,1,2,C.tree);P(x+1,y+2,3,2,C.tree);P(x,y+4,5,2,C.tree);P(x+2,y+6,1,2,C.trunk);}
+function bear(x,y){P(x,y+2,12,5,C.bear);P(x+10,y,4,4,C.bear);P(x+10,y-1,1,1,C.bear);P(x+13,y-1,1,1,C.bear);P(x+12,y+1,1,1,'#000');P(x+1,y+7,2,2,C.bear2);P(x+5,y+7,2,2,C.bear2);P(x+9,y+7,2,2,C.bear2);}
+function bird(x,y,t,col){const f=Math.floor(t*6)%2;P(x,y+f,1,1,col);P(x+1,y,1,1,col);P(x+2,y+f,1,1,col);}
+function puff(x,y,t,seed){for(let k=0;k<3;k++){const ph=((t*0.9)+k/3+seed*0.37)%1;ctx.globalAlpha=0.6*(1-ph);P(x+Math.sin(ph*7+seed)*1.5,y-ph*9,2,2,'#bbb');}ctx.globalAlpha=1;}
+function craneR(x,base,t,load,mv){P(x,base-8,30,8,'#3a3a3a');for(let i=0;i<6;i++)P(x+2+i*5,base-5,2,2,C.grey);P(x+2,base-18,26,10,C.yellow);P(x+2,base-18,26,1,C.yellow2);P(x,base-24,10,8,C.yellow2);P(x+2,base-23,6,4,C.glass);P(x+22,base-20,6,3,C.grey2);
+ const slew=mv?Math.sin(t*0.5)*5:0;const bx=x+22,by=base-18,tx=x+78+slew,ty=14;L(bx,by,tx,ty,C.yellow,1.5);L(bx-3,by,tx-3,ty,C.yellow,0.8);for(let i=0;i<14;i++){const f=i/14;L(bx+f*(tx-bx),by+f*(ty-by),bx-3+f*(tx-bx),by+f*(ty-by)+2,C.yellow2,0.5);}
+ L(x+5,base-24,tx-2,ty,'#cfcfcf',0.4);L(x+8,base-22,tx-2,ty+2,'#cfcfcf',0.4);P(tx-1,ty-1,3,3,C.yellow);
+ if(load){const sw=mv?Math.sin(t*1.3)*2:0,hy=ty+40+(mv?Math.sin(t*0.8)*3:0);L(tx+1,ty,tx+1+sw,hy,'#eee',0.4);P(tx-2+sw,hy,6,4,C.yellow);L(tx+1+sw,hy+4,tx-14+sw,hy+10,'#eee',0.4);L(tx+1+sw,hy+4,tx+16+sw,hy+10,'#eee',0.4);P(tx-17+sw,hy+10,36,5,C.girder);P(tx-17+sw,hy+10,36,1,C.girder2);P(tx-17+sw,hy+14,36,1,C.girder3);}
+ else{L(tx+1,ty,tx+1,ty+20,'#eee',0.4);P(tx-2,ty+20,6,4,C.yellow);}}
+function multiplate(x,y,r,done){for(let dy=0;dy<=r;dy++){const w=Math.sqrt(r*r-dy*dy);const yy=y-dy;P(x-w,yy,2*w,1,'#2a1a0c');P(x-w-1,yy,2,1,(dy%2)?C.grey:C.grey3);P(x+w-1,yy,2,1,(dy%2)?C.grey:C.grey3);}
+ P(x-r-1,y,2*r+2,2,C.dirt4);if(done)bear(x-7,y-9);}
+
+function drawScene(v,t){
+ const pal=v.night?NIGHT:DAY;const mv=!!v.moving;const ta=mv?t:0;
+ P(0,0,SW,SH,pal.sky);
+ if(v.night)for(const s of STARS){const tw=(Math.sin(t*2+s.b*10)>0.6&&s.b>0.7)?2:1;P(s.x,s.y,tw,tw,'#fff');}
+ // mountains (far, mid, near)
+ const peaks=[[60,50,50,pal.m3],[140,45,55,pal.m3],[215,55,50,pal.m3],[285,45,45,pal.m3],[100,85,70,pal.m2],[240,95,80,pal.m2],[30,70,60,pal.m1],[175,60,60,pal.m1],[300,70,60,pal.m1]];
+ for(const pk of peaks){const [px,ph,pw,col]=pk;for(let x=Math.max(0,px-pw);x<Math.min(SW,px+pw);x++){const h=ph*(1-Math.abs(x-px)/pw);if(h<=0)continue;const top=88-h;P(x,top,1,h,col);const cap=Math.max(1,h*0.22-Math.abs(((x*7)%5)-2)*0.6);P(x,top,1,cap,pal.snow);}}
+ // birds
+ for(let i=0;i<2;i++){const bx=((t*10+i*140)%380)-30,by=26+i*14+Math.sin(t*2+i)*2;bird(bx,by,t+i,v.night?'#ddd':'#223');}
+ // grass + trees
+ P(0,86,SW,14,C.grass);for(let i=0;i<SW;i+=3)P(i,88+((i*7)%9),1,1,C.grass2);
+ for(const tr of TREES)tree(tr.x,tr.y);
+ // rock cut on the far left once clearing is done
+ if(v.km>=1){P(0,64,28,22,C.grey2);P(2,68,22,18,C.grey);P(4,70,6,4,C.grey3);P(14,74,8,5,C.grey3);P(6,79,10,4,C.grey2);P(0,84,28,2,C.grey2);}
+ // dirt
+ P(0,106,SW,80,C.dirt);for(const d of DOTS)P(d.x,d.y,2,1,C.dirt3);
+ for(let y=146;y<186;y+=12)for(let x=(y%24)?0:6;x<320;x+=12)P(x,y,7,1,C.dirt4);
+ for(const d of DOTS)if(d.y>150&&d.x%3===0){P(d.x,d.y,3,2,C.grey2);P(d.x,d.y,2,1,C.grey);}
+ // the creek (very shallow)
+ const cx=160;for(let y=106;y<127;y++){const w=hw(y);P(cx-w,y,2*w,1,y>=121?C.water:C.dirt2);P(cx-w,y,2,1,C.dirt4);P(cx+w-2,y,2,1,C.dirt4);}
+ for(const s of SPECK){const y=121+Math.floor(s.y*5);const w=hw(y)-3;P(cx-w+Math.floor((s.x*2*w+t*6)%(2*w)),y,2,1,C.water2);}
+ // stage 0 survey, 1 abutment forms, 2 bridge done, 3 multiplate, 4 base gravel, 5 paved
+ const st=v.km<2?0:v.km<3?1:v.km<4?2:v.km<5?3:v.km<6?4:5;
+ const rc=st<4?C.dirt3:st<5?'#b9ab8d':C.road;
+ P(0,100,110,6,rc);P(210,100,110,6,rc);
+ if(st>=5){for(let x=2;x<108;x+=10)P(x,103,4,1,C.dash);for(let x=212;x<320;x+=10)P(x,103,4,1,C.dash);}
+ else if(st===4){for(let x=1;x<320;x+=5)P(x,101+(x%4),1,1,'#8f836a');}
+ else{for(let x=0;x<320;x+=7)P(x,101+(x%4),2,1,C.dirt4);}
+ if(st<2){P(110,100,100,6,C.dirt2);for(let x=112;x<208;x+=6)P(x,102+(x%3),2,1,C.dirt4);}
+ if(st===0){P(150,110,1,8,'#fff');P(148,108,5,3,'#ff40a0');P(172,112,1,7,'#fff');P(170,110,5,3,'#ff40a0');}
+ if(st===1){P(108,106,10,16,C.girder);P(108,106,10,1,C.girder2);for(let i=0;i<4;i++)P(110+i*2,100,1,6,C.rust);
+  P(202,106,10,16,C.girder);P(202,106,10,1,C.girder2);for(let i=0;i<4;i++)P(204+i*2,100,1,6,C.rust);}
+ if(st>=2){P(108,104,10,18,C.grey);P(108,104,2,18,C.grey3);P(202,104,10,18,C.grey);P(210,104,2,18,C.grey2);
+  if(st<5){P(116,100,88,6,C.girder);P(116,100,88,1,C.girder2);P(116,105,88,1,C.girder3);}
+  else{P(116,100,88,6,C.road);for(let x=118;x<204;x+=10)P(x,103,4,1,C.dash);P(116,106,88,3,C.girder);}
+  P(114,98,92,2,C.grey3);}
+ if(st>=3)multiplate(262,128,12,true);
+ if(st===2){for(let i=0;i<3;i++)P(228+i*2,96-i*3,16,3,i%2?C.grey:C.grey3);}
+ // ---- grass row (base 94): graves, dozer pushing, Fredis's truck
+ v.graves.forEach((g,i)=>tombstone(284+(i%3)*10+(i>=3?5:0),72-(i>=3?10:0)));
+ if(v.dozers>0){const ph=(ta*0.5)%1;const dx=214+ph*10;dozerR(dx,94,ta);const pile=4+ph*6;P(dx+29,94-pile,pile+3,pile,C.dirt3);P(dx+29,94-pile,pile+3,1,C.dirt);if(mv)puff(dx+16,94-21,t,0);}
+ const fa=v.fredisAway||0,fl=v.fredisLeftAt||0,fr=v.fredisRetAt||0;
+ if(v.fredisAlive!==false){let fx=null;
+  if(fa>0){const d=t-fl;if(d<3.5)fx=250+d*40;}
+  else{const d=t-fr;fx=(fr&&d<3.5)?Math.max(250,330-d*40):250;}
+  if(fx!==null&&fx<330)pickup(fx,94,'#b3001b',t,false);}
+ // ---- road row (base 100)
+ pickup(0,100,C.white,t,mv);
+ if(st>=1&&st<=2){if(v.crane>0)craneR(34,100,t,true,mv);else for(let i=0;i<3;i++)P(36,98-i*3,30,3,i%2?C.girder:C.girder2);}
+ const n=Math.min(v.trucks,3);
+ if(n>0){ctx.save();ctx.beginPath();ctx.rect(210*PX,0,110*PX,SH*PX);ctx.clip();
+  for(let i=0;i<n;i++){const x=mv?330-((t*24+i*63)%200):250+i*34;rockTruck(x,100,i%2===0);if(mv)puff(x+9,100-19,t,i+1);}
+  ctx.restore();}
+ porta(306,100);
+ cone(70,100);cone(216,100);
+ if(st<5)barricade(110,100);
+ // crew
+ let i=0;for(const p of v.party){if(p.alive===false)continue;if(p.name==='Fredis'&&fa>0)continue;const bob=(mv&&Math.floor(t*4+i)%2)?-1:0;person(64+i*6.5,100+bob,p);i++;}
+ for(const e of v.extras)person(e.x,100,e);
+ // weather
+ if(v.weather==='Snow')for(const f of FLAKES)P((f.x+t*8*f.v)%320,(f.y+t*25*f.v)%186,1,1,'#fff');
+ if(v.weather==='Rain'||v.weather==='Sideways rain'){const sl=v.weather==='Rain'?1:4;for(const f of FLAKES)L((f.x+t*40*f.v*sl)%320,(f.y+t*120*f.v)%186,((f.x+t*40*f.v*sl)%320)+sl,((f.y+t*120*f.v)%186)+3,'#9fc7ff',0.3);}
+ if(v.weather==='Smoke'){ctx.globalAlpha=0.35;P(0,0,SW,SH,'#ff8a2a');ctx.globalAlpha=1;}
+}
+function viewFromState(o){return Object.assign({km:S.km,night:S.pace===2,weather:S.weather,trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:S.party,graves:S.graves,moving:S.moving,extras:S.extras,fredisAway:S.fredisAway,fredisLeftAt:S.fredisLeftAt,fredisRetAt:S.fredisRetAt,fredisAlive:fredisAlive()},o||{});}
+
+// ---------------- UI helpers ----------------
+function hud(){ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=0;ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;txt(`WEEK ${S.week}   KM ${S.km.toFixed(1)}/6   LOSS ${fmt(S.loss)}   DIESEL ${S.fuel.toLocaleString()} L   COFFEE ${S.coffee}   ${S.weather.toUpperCase()}`,16,8,28,'#fff');
+ const m=MILESTONES[S.msIndex];txt(m?`NEXT: ${m.name.toUpperCase()} (KM ${m.km}, DEADLINE WEEK ${m.deadline})`:'SUBSTANTIAL COMPLETION. MEL HAS A LIST.',16,36,26,'#ffd400');ctx.restore();}
+function box(){P(0,SH,SW,240-SH,'#000');ctx.fillStyle='#000';ctx.fillRect(0,SH*PX,1280,960-SH*PX);ctx.strokeStyle='#fff';ctx.lineWidth=6;ctx.strokeRect(27,757,1226,186);ctx.lineWidth=2;ctx.strokeRect(39,769,1202,162);}
+function boxText(text,hint,opts){box();const o=opts||{};let size=36;let ls=wrap(text,66);if(ls.length>4){size=30;ls=wrap(text,80);}if(ls.length>5){size=26;ls=wrap(text,92);}
+ const lh=size*0.92;let y=o.top||(hint?778:790);if(!hint&&ls.length<4)y=790+(4-ls.length)*lh/2;
+ for(const l of ls){txt(l,640,y,size,'#fff','center');y+=lh;}
+ if(hint)txt(hint,640,905,30,'#bdbdbd','center');}
+function boxMenu(title,items,sel,extra){box();let y=772;const size=items.length>5?27:30;if(title){txt(title,640,y,size,'#fff','center');y+=size;}
+ items.forEach((it,i)=>{const on=i===sel;txt((on?'> ':'  ')+(i+1)+'. '+it,80,y,size,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-4,y1:y+size*0.95,key:String(i+1)});y+=size*0.95;});
+ if(extra)txt(extra,640,915,26,'#bdbdbd','center');}
+function menuKey(k,n){if(k==='ArrowUp')S.sel=(S.sel+n-1)%n;else if(k==='ArrowDown')S.sel=(S.sel+1)%n;else if(/^[1-9]$/.test(k)&&+k<=n)return +k-1;else if(k==='Enter'||k===' ')return S.sel;return -1;}
+function healthWord(h){return h>75?'Good':h>50?'Fair':h>25?'Poor':'Very poor';}
+
+// ---------------- screens ----------------
+const DRAW={
+ gate(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],fredisAway:0},t);
+  ctx.save();txt('SELKIRK TRAIL',646,126,150,'#000','center');txt('SELKIRK TRAIL',640,120,150,'#ffd400','center');ctx.restore();
+  box();txt('This site is for the Selkirk crew only.',640,785,36,'#fff','center');txt(S.gateMsg||'Ask whoever sent you the link for the access code.',640,835,30,'#ffd400','center');txt(TOUCH?'Tap to enter the code.':'Press ENTER to enter the code.',640,905,30,'#bdbdbd','center');},
+ title(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],fredisAway:0},t);
+  ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=0;txt('SELKIRK TRAIL',646,126,150,'#000','center');txt('SELKIRK TRAIL',640,120,150,'#ffd400','center');ctx.restore();
+  txt('A Golden, BC construction tragedy in six kilometres',640,262,40,'#fff','center');
+  boxMenu('',['Start a new project','Learn about the trail','Look at the Top Ten (there is no Top Ten, Andy deleted it)'],S.sel,TOUCH?'Tap to select':'ENTER to select');},
+ intro(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);boxText(INTRO[S.page],HINT);},
+ about(t){drawScene({km:6,night:true,weather:'Clear',trucks:2,dozers:1,crane:0,party:PARTY_DEF,graves:[],moving:true,extras:[],fredisAway:0},t);boxText(ABOUT[S.page],HINT);},
+ name(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);box();txt('What is your name, boss?',640,785,36,'#fff','center');txt(S.name+(Math.floor(t*2)%2?'_':' '),640,835,44,'#ffd400','center');txt(TOUCH?'Tap to type a name.':'Type a name and press ENTER.',640,905,30,'#bdbdbd','center');},
+ role(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);
+  boxMenu('Many roles have fallen on the Selkirk Trail. What is yours?',ROLES.map(r=>r.name+'  -  '+r.blurb),S.sel,'');},
+ crew(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);box();
+  txt(`${S.name}, ${S.role.name}. Your crew:`,640,772,32,'#fff','center');PARTY_DEF.forEach((p,i)=>txt(`${p.name}  -  ${p.role}`,i<4?340:940,808+(i%4)*26,26,'#ffd400','center'));txt(TOUCH?'Tap to go to the yard.':'Press ENTER to go to the yard.',640,918,26,'#bdbdbd','center');},
+ store(t){drawScene({km:0,night:false,weather:'Clear',trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);
+  ctx.fillStyle='rgba(0,0,0,0.82)';ctx.fillRect(60,30,1160,690);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(60,30,1160,690);
+  txt('FINNING CAT RENTAL  -  GOLDEN YARD',640,48,44,'#ffd400','center');txt(`Allowance remaining: ${fmtFull(S.cash)}`,640,98,32,'#fff','center');
+  let y=150;STORE.forEach((it,i)=>{const on=i===S.sel;const q=S[it.key];txt((on?'> ':'  ')+it.name,100,y,34,on?'#ffd400':'#fff');txt(fmtFull(it.price)+' / '+(it.step>1?it.step.toLocaleString():'ea'),640,y,34,on?'#ffd400':'#bdbdbd');txt((it.key==='fuel'?q.toLocaleString()+' L':q),1000,y,34,on?'#ffd400':'#fff','right');
+   ctx.strokeStyle=on?'#ffd400':'#888';ctx.lineWidth=3;ctx.strokeRect(1040,y-2,50,38);ctx.strokeRect(1120,y-2,50,38);txt('-',1065,y-4,40,on?'#ffd400':'#bdbdbd','center');txt('+',1145,y-4,40,on?'#ffd400':'#bdbdbd','center');
+   HIT.push({x0:80,x1:1030,y0:y-4,y1:y+40,key:'row:'+i});HIT.push({x0:1036,x1:1094,y0:y-6,y1:y+40,key:'minus:'+i});HIT.push({x0:1116,x1:1174,y0:y-6,y1:y+40,key:'plus:'+i});y+=44;});
+  const on=S.sel===STORE.length;txt((on?'> ':'  ')+'Head out to site',100,y+10,38,on?'#ffd400':'#fff');HIT.push({x0:80,x1:700,y0:y+4,y1:y+50,key:'go'});
+  txt("Lenny: 'You'll want a dozer, four or five rock trucks, a grader, and the crane for Fredis. And coffee. Mostly coffee.'",640,y+70,26,'#bdbdbd','center');
+  txt(TOUCH?'Tap + to buy, - to return, then Head out to site':'UP/DOWN select   LEFT/RIGHT buy or return   ENTER when done',640,y+104,26,'#bdbdbd','center');
+  box();txt(S.storeMsg||'Everything is on EllisDon\'s account. Andy will see the invoice.',640,830,32,'#fff','center');},
+ travel(t){drawScene(viewFromState(),t);hud();box();
+  txt(S.moving?'Travelling the Selkirk Trail...':'Paused.',640,790,36,'#fff','center');txt(`Pace: ${PACES[S.pace]}   Coffee: ${RATIONS[S.ration]}`,640,840,28,'#bdbdbd','center');txt(TOUCH?'Tap for the site menu.':'Press ENTER for the site menu.',640,900,30,'#bdbdbd','center');},
+ menu(t){drawScene(viewFromState(),t);hud();boxMenu('',['Continue on the trail','Check crew and supplies',`Change pace (${PACES[S.pace]})`,`Change coffee rations (${RATIONS[S.ration]})`,'Rest for a week','Call Andy','Talk to Tanya','Talk to Fredis'],S.sel,'');},
+ pace(t){drawScene(viewFromState(),t);hud();boxMenu('Set the pace:',PACES.map((p,i)=>p+['  -  slow, safe, Mel approves','  -  faster, crew tires, burn rate up','  -  fastest, crew breaks, Andy loves it'][i]),S.sel,'');},
+ ration(t){drawScene(viewFromState(),t);hud();boxMenu('Set the coffee rations:',RATIONS.map((p,i)=>p+['  -  14 cups/week each, crew thrives','  -  7 cups/week each','  -  3 cups/week each, morale dies'][i]),S.sel,'');},
+ status(t){drawScene(viewFromState(),t);ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(60,30,1160,690);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(60,30,1160,690);
+  txt(`${S.name}  -  ${S.role.name}  -  Week ${S.week}`,640,48,40,'#ffd400','center');let y=110;
+  for(const p of S.party){let s=p.alive?healthWord(p.health)+(p.cond?'  ('+p.cond+')':''):(p.gone==='Andy'?'Killed by Andy':p.name==='Fredis'?'In Calgary. Permanently.':'Quit for the ski hill');if(p.alive&&p.name==='Fredis')s=(S.fredisAway>0?'In Calgary (angry)':'On site (angry)')+(p.cond?'  ('+p.cond+')':'');txt(p.name+'  -  '+p.role,100,y,34,p.alive?'#fff':'#777');txt(s,760,y,34,p.alive?(p.health>50?'#8f8':'#f88'):'#777');y+=38;}
+  y+=20;const inv=[`Rock trucks: ${S.trucks}`,`D8 dozers: ${S.dozers}`,`Graders: ${S.graders}`,`Crane: ${S.crane?'yes':'NO'}`,`Diesel: ${S.fuel.toLocaleString()} L`,`Coffee: ${S.coffee} cups`,`Hi-vis vests: ${S.vests}`,`Spare tracks: ${S.tracks}`];
+  inv.forEach((s,i)=>txt(s,100+(i%2)*560,y+Math.floor(i/2)*38,32,'#fff'));y+=170;
+  txt(`EllisDon loss so far: ${fmtFull(S.loss)}   (target: less than $45,000,000, ha)`,640,y,32,'#ffd400','center');txt(`Progress: km ${S.km.toFixed(2)} of 6.  Fired by Andy: ${S.fired}.  Quit: ${S.quit}.`,640,y+40,32,'#fff','center');
+  box();txt(TOUCH?'Tap to return.':'Press ENTER to return.',640,830,32,'#bdbdbd','center');},
+ msg(t){const m=S.queue[0];drawScene(viewFromState({extras:m&&m.andy?[{x:118,hat:'#fff',shirt:'#1d2b4f',pants:'#1d2b4f',tie:true}]:[]}),t);hud();
+  if(m.ch){box();let size=m.t.length>90?26:30;let ls=wrap(m.t,size>26?78:92);let y=770;for(const l of ls){txt(l,640,y,size,'#fff','center');y+=size*0.9;}y+=6;
+   m.ch.forEach((c,i)=>{const on=i===S.sel;txt((on?'> ':'  ')+(i+1)+'. '+c.l,90,y,28,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-3,y1:y+27,key:String(i+1)});y+=27;});}
+  else boxText(m.t,HINT);},
+ milestone(t){drawScene(viewFromState(),t);hud();const m=S.msCur;const late=S.late;
+  boxMenu(`You have reached ${m.name}.  Week ${S.week}.  Andy wanted it by Week ${m.deadline}.  ${late>0?'You are '+late+' weeks late. Andy knows.':'You are on time. Andy is suspicious.'}`,['Continue on the trail','Talk to Mel','Look around'],S.sel,'');},
+ dead(t){drawScene(viewFromState({km:Math.max(0,S.km-0.01),night:true,weather:'Clear',extras:[{x:118,hat:'#fff',shirt:'#1d2b4f',pants:'#1d2b4f',tie:true}],graves:S.graves.concat([{name:S.name}])}),t);
+  boxText(`Andy Smith killed you because ${S.deathReason}.`,HINT);},
+ win(t){drawScene(viewFromState({km:6,night:true,weather:'Bluebird',moving:true,extras:[{x:118,hat:'#fff',shirt:'#2e7d32',pants:'#333',vest:true,clip:true},{x:126,hat:'#fff',shirt:'#1d2b4f',pants:'#1d2b4f',tie:true}]}),t);hud();
+  const pages=[`SUBSTANTIAL COMPLETION.  Week ${S.week}. Andy's deadline was Week 68. ${S.late>0?'You were '+S.late+' weeks late.':'You were on time, which has never happened.'}\nEllisDon lost ${fmtFull(S.loss)}.`,
+   S.loss>45000000?"Andy: 'Forty-five million was the target. You beat it. In the wrong direction.'":"Andy: 'You lost less than forty-five million. Accounting is re-checking your numbers.'",
+   "Mel's deficiency list has 412 items. Item 1: 'Bridge.' Item 2: 'Shoulders, 50 mm narrow.' Item 412: 'Moose still using detour.'"];
+  boxText(pages[Math.min(S.page,pages.length-1)],HINT);},
+ summary(t){drawScene(viewFromState({night:true}),t);ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(60,30,1160,690);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(60,30,1160,690);
+  const sc=score();txt('FINAL REPORT TO ANDY',640,50,48,'#ffd400','center');let y=130;
+  const rows=[`Weeks on site: ${S.week}`,`Kilometres built: ${S.km.toFixed(1)} of 6`,`EllisDon loss: ${fmtFull(S.loss)}`,`Crew still employed: ${alive().map(p=>p.name).join(', ')||'nobody'}`,`Killed by Andy: ${S.party.filter(p=>p.gone==='Andy').map(p=>p.name).join(', ')||'nobody'}`,`Quit for the ski hill: ${S.party.filter(p=>p.gone==='quit').map(p=>p.name).join(', ')||'nobody'}`,`Role: ${S.role?S.role.name:'-'} (x${S.role?S.role.mult:1} points)`];
+  for(const r of rows){txt(r,120,y,34,'#fff');y+=46;}y+=20;txt(`SCORE: ${sc.pts.toLocaleString()} points`,640,y,52,'#ffd400','center');txt(`Rank: ${sc.rank}`,640,y+64,36,'#fff','center');
+  box();txt((TOUCH?'Tap':'Press ENTER')+' to return to the title. Andy will be in touch.',640,830,32,'#bdbdbd','center');},
+};
+function score(){const a=alive().length;let pts=a*500+Math.max(0,45000000-S.loss)/50000+S.trucks*100+S.dozers*150+(S.crane?200:0)+Math.round(S.km*100)-S.late*50;if(S.screen==='dead'||S.deathReason)pts*=0.25;pts=Math.round(pts*(S.role?S.role.mult:1));
+ const rank=S.deathReason?'Transferred to Fort McMurray':pts>4000?'Superintendent of the Year (Andy abstained)':pts>2500?"Andy is 'proud' (his word, his quotes)":pts>1200?'Adequate. Mel disagrees.':'Reassigned to snow removal';return{pts,rank};}
+
+const KEY={
+ gate(k){if(k==='Enter'||k===' ')askGate();},
+ title(k){const i=menuKey(k,3);if(i===0){const nm=S.name;newGame();S.name=nm;S.screen='intro';S.page=0;}else if(i===1){S.screen='about';S.page=0;}else if(i===2){show({t:"There is no Top Ten. Andy deleted it after someone put Mel in the number one spot."});S.ret='title';}},
+ intro(k){if(k==='Enter'||k===' '){if(++S.page>=INTRO.length){S.screen='name';}}},
+ about(k){if(k==='Enter'||k===' '){if(++S.page>=ABOUT.length){S.screen='title';S.sel=0;}}},
+ name(k){if(k==='Enter'){if(!S.name.trim())S.name='Boss';S.screen='role';S.sel=0;}else if(k==='Backspace')S.name=S.name.slice(0,-1);else if(k.length===1&&/[a-zA-Z0-9 .'-]/.test(k)&&S.name.length<14)S.name+=k;},
+ role(k){const i=menuKey(k,3);if(i>=0){S.role=ROLES[i];S.cash=ROLES[i].cash;S.screen='crew';}},
+ crew(k){if(k==='Enter'||k===' '){S.screen='store';S.sel=0;}},
+ store(k){const n=STORE.length+1;if(k==='ArrowUp')S.sel=(S.sel+n-1)%n;else if(k==='ArrowDown')S.sel=(S.sel+1)%n;
+  else if(S.sel<STORE.length&&(k==='ArrowRight'||k==='+'||k==='=')){const it=STORE[S.sel];if(it.max&&S[it.key]>=it.max)S.storeMsg='You only need one crane. Probably.';else if(S.cash<it.price)S.storeMsg="Louie: 'Andy is not going to approve that.'";else{S.cash-=it.price;S[it.key]+=it.step;S.storeMsg=`Bought ${it.name}.`;}}
+  else if(S.sel<STORE.length&&(k==='ArrowLeft'||k==='-')){const it=STORE[S.sel];if(S[it.key]>=it.step){S[it.key]-=it.step;S.cash+=it.price;S.storeMsg=`Returned ${it.name}. Finning sighs.`;}}
+  else if(k==='Enter'&&S.sel===STORE.length){S.screen='travel';S.moving=true;S.week=1;S.ret='travel';
+   show({t:`Week 1. You leave the Golden yard with ${S.trucks} rock truck${S.trucks===1?'':'s'}, ${S.dozers} dozer${S.dozers===1?'':'s'}, ${S.fuel.toLocaleString()} litres of diesel and ${S.coffee} cups of coffee.\nAndy's deadline for Substantial Completion is Week 68. Good luck. You'll need it.`});
+   if(S.dozers===0)show({t:"Lenny: 'No dozer? We're clearing six kilometres of mountain with a pickup and vibes?' Progress will be slow."});}
+  else if(k==='Enter'){const it=STORE[S.sel];if(S.cash>=it.price&&!(it.max&&S[it.key]>=it.max)){S.cash-=it.price;S[it.key]+=it.step;S.storeMsg=`Bought ${it.name}.`;}}},
+ travel(k){if(k==='Enter'||k===' '||k==='Escape'){S.moving=false;S.screen='menu';S.sel=0;}},
+ menu(k){const i=menuKey(k,8);if(i===0){S.screen='travel';S.moving=true;}else if(i===1)S.screen='status';else if(i===2){S.screen='pace';S.sel=S.pace;}else if(i===3){S.screen='ration';S.sel=S.ration;}
+  else if(i===7){S.ret='menu';if(!fredisAlive())show({t:"Fredis is gone. His hard hat is still on the hook. Nobody will touch it."});else if(!fredisHere())show({t:"Fredis is in Calgary. Nobody knows why. Nobody will ask."});else show({t:rnd(FREDIS_TALK)});}
+  else if(i===4){S.week++;S.loss+=burn();for(const p of alive()){p.health=Math.min(100,p.health+15);p.cond=null;}S.ret='menu';show({t:rnd(["The crew rests for a week. Andy notices. Andy always notices.","A week off. Louie goes fishing. Scott goes to Calgary. Lenny reads the spec. Nobody knows why.","Rest week. Tanya holds an optional safety meeting. Attendance is mandatory."])});}
+  else if(i===5){for(const p of alive())p.health=Math.max(1,p.health-2);S.ret='menu';show({t:rnd(ANDY_CALLS)});}
+  else if(i===6){const sick=alive().filter(p=>p.cond);S.week++;S.loss+=burn();if(sick.length){for(const p of sick)p.cond=null;S.ret='menu';show({t:`Tanya runs a wellness toolbox talk. It lasts a week. ${sick.map(p=>p.name).join(' and ')} feel${sick.length>1?'':'s'} better. Everyone else feels lectured.`});}else{S.ret='menu';show({t:rnd(["Tanya: 'Where is your hi-vis?' You are wearing it. She checks the tag anyway. One week passes.","Tanya shows you a 40-slide deck on ladder safety. There are still no ladders. One week passes."])});}}},
+ pace(k){const i=menuKey(k,3);if(i>=0){S.pace=i;S.screen='menu';S.sel=0;}},
+ ration(k){const i=menuKey(k,3);if(i>=0){S.ration=i;S.screen='menu';S.sel=0;}},
+ status(k){if(k==='Enter'||k===' '||k==='Escape'){S.screen='menu';S.sel=0;}},
+ msg(k){const m=S.queue[0];if(!m){S.screen=S.ret||'travel';return;}
+  if(m.ch){const i=menuKey(k,m.ch.length);if(i<0)return;const c=m.ch[i];const out=c.run?c.run(S):{t:c.t,fx:c.fx,on:c.on};applyFx(out.fx);if(out.on)out.on(S);S.queue.shift();if(out.t)S.queue.unshift({t:out.t});S.sel=0;if(!S.queue.length)finishMsg();return;}
+  if(k==='Enter'||k===' '){S.queue.shift();if(m.then)m.then();if(S.screen==='msg'&&!S.queue.length)finishMsg();}},
+ milestone(k){const i=menuKey(k,3);const m=S.msCur;if(i===0)afterMilestone();else if(i===1){S.ret='milestone';show({t:m.mel});}else if(i===2){S.ret='milestone';show({t:m.look});}},
+ dead(k){if(k==='Enter'||k===' '){S.screen='summary';}},
+ win(k){if(k==='Enter'||k===' '){if(++S.page>=3)S.screen='summary';}},
+ summary(k){if(k==='Enter'||k===' '){const nm=S.name;newGame();S.name=nm;S.screen='title';S.sel=0;}},
+};
+function finishMsg(){const r=S.ret||'travel';S.ret='travel';if(S.screen!=='msg')return;S.screen=r;if(r==='travel')S.moving=true;if(r==='menu'||r==='title'||r==='milestone')S.sel=0;}
+
+// ---------------- loop + input ----------------
+let last=0;
+function frame(ms){const t=ms/1000;if(S.screen==='travel'&&S.moving&&ms-S.lastTick>850){S.lastTick=ms;tick();}
+ ctx.imageSmoothingEnabled=false;HIT=[];(DRAW[S.screen]||DRAW.title)(t);requestAnimationFrame(frame);}
+document.addEventListener('keydown',e=>{const k=e.key;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','Backspace'].includes(k))e.preventDefault();(KEY[S.screen]||KEY.title)(k);});
+function canvasPoint(e){const r=cv.getBoundingClientRect();if(r.height>r.width)return{x:(e.clientY-r.top)/r.height*1280,y:(r.right-e.clientX)/r.width*960};return{x:(e.clientX-r.left)/r.width*1280,y:(e.clientY-r.top)/r.height*960};}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();try{cv.focus();}catch(_){}
+ const p=canvasPoint(e);const h=HIT.find(z=>p.x>=z.x0&&p.x<=z.x1&&p.y>=z.y0&&p.y<=z.y1);
+ if(S.screen==='gate'){askGate();return;}
+ if(S.screen==='name'){const v=prompt('What is your name, boss?',S.name);if(v!==null)S.name=v.trim().slice(0,14)||'Boss';KEY.name('Enter');return;}
+ if(S.screen==='store'){if(!h)return;if(h.key==='go'){S.sel=STORE.length;KEY.store('Enter');return;}const [act,i]=h.key.split(':');S.sel=+i;if(act==='plus')KEY.store('ArrowRight');else if(act==='minus')KEY.store('ArrowLeft');return;}
+ (KEY[S.screen]||KEY.title)(h?h.key:'Enter');});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+window.ST={CFG,get S(){return S;},set:o=>Object.assign(S,o),go:s=>{S.screen=s;},show,fire,gameover,newGame:()=>{newGame();},ROLES,MILESTONES};
+document.fonts&&document.fonts.load('36px "VT323"').then(()=>{}).catch(()=>{});
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
