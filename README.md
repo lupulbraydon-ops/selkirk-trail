@@ -43,14 +43,5 @@ index.html (search for GATE=) with the output of:
 
     node -e "console.log(require('crypto').createHash('sha256').update('NEWCODE').digest('hex'))"
 
-To host on GitHub Pages (free, public URL, no login for players), from this folder:
-
-    git init -b main
-    git add -A
-    git commit -m "Selkirk Trail"
-    git remote add origin https://github.com/lupulbraydon-ops/selkirk-trail.git
-    git push -u origin main
-
-after creating an empty public repo named selkirk-trail at https://github.com/new, then on that repo:
-Settings > Pages > Source: Deploy from a branch, Branch: main, folder: / (root). The game will be at
-https://lupulbraydon-ops.github.io/selkirk-trail/ within a minute or two.
+Live on GitHub Pages: https://lupulbraydon-ops.github.io/selkirk-trail/  (repo lupulbraydon-ops/selkirk-trail, branch main, root).
+To update: edit index.html, then `git add -A && git commit -m "..." && git push`. Pages rebuilds in about a minute.
