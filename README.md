@@ -10,6 +10,13 @@ Internet is only needed for the pixel font; without it the game falls back to Co
 
 Keys: ENTER to continue, number keys or arrow keys to choose, LEFT/RIGHT to buy or return in the yard.
 
+## Mini-games
+
+- **Load the Rock Trucks**: excavator timing game. Tap or SPACE when the bucket is over the box (bar turns green). Six buckets per truck, 30 seconds, four spills and Tanya shuts it down. Each truck loaded adds a little progress.
+- **Cut the Grade**: the grader drives itself; you set the blade with UP/DOWN or by dragging. Shave to the yellow string line. 80%+ on grade earns progress and Mel's silence; under 55% is a re-grade week.
+
+Both trigger at milestones (after Clearing, after the Multiplate), as random events, and from the site menu any time (costs a week).
+
 ## Dev
 
 `node dev-server.js` serves the game at http://localhost:8765/ and accepts screenshot uploads

@@ -35,7 +35,7 @@ const GATE={on:!['localhost','127.0.0.1',''].includes(location.hostname),hash:'a
 async function sha256(str){const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');}
 function gateOpen(){try{return !GATE.on||localStorage.getItem('selkirk-gate')===GATE.hash;}catch(_){return !GATE.on;}}
 async function askGate(){const v=prompt('Site access code:');if(v===null)return;const h=await sha256(v.trim().toUpperCase().replace(/s+/g,''));if(h===GATE.hash){try{localStorage.setItem('selkirk-gate',h);}catch(_){}S.screen='title';S.sel=0;}else{S.gateMsg=rnd(['Wrong code. Andy has been notified.','Wrong code. Mel would like a memo.','Wrong code. Tanya has shut down the site.']);}}
-const PX=4;                       // logical pixel scale (320x186 scene)
+let PX=4;                       // logical pixel scale (320x186 scene)
 const SW=320,SH=186;
 function P(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x)*PX,Math.round(y)*PX,Math.round(w)*PX,Math.round(h)*PX);}
 function L(x1,y1,x2,y2,c,w){ctx.strokeStyle=c;ctx.lineWidth=(w||1)*PX;ctx.beginPath();ctx.moveTo(x1*PX,y1*PX);ctx.lineTo(x2*PX,y2*PX);ctx.stroke();}
@@ -183,6 +183,9 @@ const EVENTS=[
  {w:2,t:"A survey stake was moved by a marmot. Twelve metres of road are now in the wrong place. Lenny is re-shooting the alignment.",cond:s=>s.km<5,fx:{weeks:1,loss:95000}},
  {w:2,t:"Lenny's earthworks crew hit a boulder the size of a house. Lenny wants to blast. Tanya wants a meeting. Scott wants lunch.",cond:s=>s.km>=4&&s.km<6,fx:{weeks:1,loss:140000}},
  {w:2,t:"Adam's labour crew shovelled the wrong ditch. It is a very clean ditch. It is on the other side of the highway.",fx:{weeks:1}},
+ // ---- mini-games ----
+ {w:4,t:"Lenny: 'The pit's backed up and the excavator operator went to Calgary with Fredis. Get in.'",cond:s=>s.trucks>0&&(s.km<3||s.km>=4),mg:'load'},
+ {w:4,t:"Louie: 'Grader's fuelled. Mel's coming at two to check the grade. You're up.'",cond:s=>s.graders>0&&s.km>=4,mg:'grade'},
  // ---- Harsh ----
  {w:3,t:"Harsh submitted the QA package to the Ministry. It was 400 pages. Mel read all of it. It was 400 copies of the same page.",fx:{weeks:1,loss:90000}},
  {w:3,t:"Harsh's RFI response cites a spec clause that does not exist. Mel has asked for the clause. Harsh is now writing the clause.",fx:{weeks:1}},
@@ -239,6 +242,7 @@ function leave(p){p.alive=false;p.gone='quit';S.quit++;S.graves.push({name:p.nam
 function gameover(reason){S.deathReason=reason;S.moving=false;S.screen='dead';S.queue=[];}
 function randomEvent(){const pool=EVENTS.filter(e=>!e.cond||e.cond(S));const e=pickW(pool);
  if(e.kill){show({t:e.t,then:()=>fire(e.kill)});return;}
+ if(e.mg){show({t:e.t,then:()=>startMG(e.mg)});return;}
  if(e.ch){show({t:e.t,ch:e.ch.filter(c=>!c.cond||c.cond(S))});return;}
  applyFx(e.fx);if(e.on)e.on(S);show({t:e.t});}
 function illness(){const a=alive();if(!a.length)return;const p=rnd(a.filter(x=>!x.cond));if(!p)return;p.cond=rnd(CONDS);p.condWeeks=4;show({t:`${p.name} has ${p.cond}.`});}
@@ -273,6 +277,8 @@ function reachMilestone(m){S.moving=false;S.msIndex++;S.msCur=m;S.late=Math.max(
  S.screen='milestone';S.sel=0;}
 function afterMilestone(){const m=S.msCur;S.screen='travel';S.moving=true;S.ret='travel';
  if(m.km===2&&S.crane<=0){applyFx({weeks:4,loss:2500000,crane:1});show({t:"The creek bridge is next and you have no crane. Sterling Crane sends one from Calgary: four weeks and $2,500,000. Fredis watched you not order it. He said nothing."});}
+ if(m.km===1&&S.trucks>0)show({t:"Lenny: 'Clearing's done. Now the real work. Get in the excavator and load some trucks.'",then:()=>startMG('load')});
+ if(m.km===4&&S.graders>0)show({t:"Lenny: 'Grade's yours. Don't embarrass me in front of Mel.'",then:()=>startMG('grade')});
  if(S.late>0)fire(`${m.name} finished ${S.late} week${S.late>1?'s':''} late`);}
 
 // ---------------- scene drawing ----------------
@@ -289,7 +295,7 @@ function dozerR(x,base,ta){P(x,base-7,24,7,'#3a3a3a');for(let i=0;i<5;i++)P(x+2+
 function rockTruck(x,base,loaded){P(x+3,base-6,6,6,C.black);P(x+13,base-6,6,6,C.black);P(x+23,base-6,6,6,C.black);P(x+5,base-4,2,2,C.grey);P(x+15,base-4,2,2,C.grey);P(x+25,base-4,2,2,C.grey);
  P(x+8,base-16,22,10,C.yellow);P(x+6,base-14,2,8,C.yellow);P(x+8,base-16,22,1,C.yellow2);P(x+28,base-15,2,9,C.yellow2);if(loaded){P(x+10,base-19,18,3,C.dirt3);P(x+13,base-21,12,2,C.dirt);}
  P(x,base-13,9,8,C.yellow);P(x+1,base-12,5,4,C.glass);P(x,base-6,9,1,C.yellow2);P(x+9,base-19,1,4,C.grey2);}
-function grader(x,base){P(x+4,base-6,4,6,C.black);P(x+24,base-6,5,6,C.black);P(x+30,base-6,5,6,C.black);P(x,base-10,36,4,C.yellow);P(x+24,base-18,10,8,C.yellow2);P(x+25,base-17,8,4,C.glass);P(x+10,base-6,12,3,C.grey);P(x,base-11,4,2,C.yellow2);}
+function grader(x,base,noBlade){P(x+4,base-6,4,6,C.black);P(x+24,base-6,5,6,C.black);P(x+30,base-6,5,6,C.black);P(x,base-10,36,4,C.yellow);P(x+24,base-18,10,8,C.yellow2);P(x+25,base-17,8,4,C.glass);if(!noBlade)P(x+10,base-6,12,3,C.grey);P(x,base-11,4,2,C.yellow2);}
 function porta(x,base){P(x-1,base-19,12,2,C.blue2);P(x,base-18,10,18,C.blue);P(x+3,base-14,4,12,C.blue3);P(x+4,base-17,2,2,C.blue2);}
 function barricade(x,base){P(x,base-8,2,8,'#ddd');P(x+8,base-8,2,8,'#ddd');P(x-1,base-8,12,4,C.orange);P(x+1,base-8,2,4,'#fff');P(x+5,base-8,2,4,'#fff');P(x+4,base-10,2,2,'#ffd400');}
 function cone(x,base){P(x+1,base-3,1,3,C.orange);P(x,base-1,3,1,C.orange);P(x+1,base-2,1,1,'#fff');}
@@ -371,6 +377,98 @@ function drawScene(v,t){
 }
 function viewFromState(o){return Object.assign({km:S.km,night:S.pace===2,weather:S.weather,trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:S.party,graves:S.graves,moving:S.moving,extras:S.extras,fredisAway:S.fredisAway,fredisLeftAt:S.fredisLeftAt,fredisRetAt:S.fredisRetAt,fredisAlive:fredisAlive()},o||{});}
 
+// ---------------- mini-games ----------------
+// Drawn at PX=8 on a 160x93 logical grid (same 1280x744 scene area). Update happens inside the draw using DT.
+let DT=0,lastMs=0;const KEYS=new Set();
+const MG_LOAD_TIME=30;
+function startMG(type){S.moving=false;S.mg={type,phase:'intro',pointerDown:false,target:null};
+ if(type==='load'){Object.assign(S.mg,{s:0,dir:1,omega:0.55,full:true,loads:0,trucks:0,spills:0,timeLeft:MG_LOAD_TIME,rocks:[],truckX:72,leaving:0,arriving:0,flash:0,flashTxt:''});}
+ else{const design=[],ground=[];for(let x=0;x<160;x++){const d=62+Math.round(5*Math.sin(x/23)+2*Math.sin(x/7));design.push(d);let b=Math.round(Math.random()*7);if(Math.random()<0.1)b=-2;ground.push(d-b);}
+  Object.assign(S.mg,{design,ground,gx:-30,by:design[0]-5,dust:[],cutCols:0});}
+ S.screen='mgIntro';}
+function mgFinish(text,fx,kmBonus){S.week++;S.loss+=burn();applyFx(fx);
+ if(kmBonus>0){const nx=MILESTONES[S.msIndex];S.km=Math.min(S.km+kmBonus,nx?nx.km-0.01:6);}
+ S.mg=null;S.ret='travel';show({t:text});}
+// ---- Load the rock trucks ----
+const LD={pile:[9,45],truckBox:[80,60],pivot:[35,41]};
+function bucketPos(s){const [px,py]=LD.pile,[tx,ty]=LD.truckBox;return[px+(tx-px)*s,py+(ty-py)*s-20*Math.sin(Math.PI*s)];}
+function excavator(x,base){P(x,base-6,26,6,'#3a3a3a');for(let i=0;i<5;i++)P(x+2+i*5,base-3,2,2,C.grey);P(x+3,base-14,22,8,C.yellow);P(x+3,base-14,22,1,C.yellow2);P(x+4,base-20,9,6,C.yellow2);P(x+5,base-19,7,4,C.glass);P(x+20,base-12,6,5,C.grey2);P(x+16,base-18,2,4,'#222');}
+function dumpBucket(){const m=S.mg;if(!m||m.phase!=='play'||m.leaving>0||m.arriving>0||!m.full)return;
+ const [bx,by]=bucketPos(m.s);m.full=false;
+ if(m.s>=0.84){m.loads++;for(let i=0;i<10;i++)m.rocks.push({x:bx-2+Math.random()*5,y:by,vy:10+Math.random()*10,floor:76-m.loads*1.2,c:i%3?C.dirt3:C.grey});
+  m.flash=0.6;m.flashTxt='LOADED';
+  if(m.loads>=6){m.leaving=1.3;m.trucks++;}}
+ else{m.spills++;m.flash=0.8;m.flashTxt='SPILL!';for(let i=0;i<10;i++)m.rocks.push({x:bx-3+Math.random()*7,y:by,vy:10+Math.random()*10,floor:85,c:i%2?C.grey:C.grey2});
+  if(m.spills>=4){m.phase='over';}}}
+function drawMGLoad(t){const m=S.mg;PX=8;try{
+ if(m.phase==='play'){m.timeLeft-=DT;if(m.timeLeft<=0){m.timeLeft=0;m.phase='over';}
+  if(m.leaving>0){m.leaving-=DT;m.truckX+=60*DT;if(m.leaving<=0){m.leaving=0;m.arriving=1.2;m.truckX=170;m.loads=0;m.omega*=1.15;m.rocks=m.rocks.filter(r=>r.floor===85);}}
+  else if(m.arriving>0){m.arriving-=DT;m.truckX=Math.max(72,m.truckX-80*DT);if(m.arriving<=0){m.arriving=0;m.truckX=72;}}
+  m.s+=m.dir*m.omega*DT;if(m.s>=1){m.s=1;m.dir=-1;}if(m.s<=0){m.s=0;m.dir=1;m.full=true;}
+  if(m.flash>0)m.flash-=DT;
+  for(const r of m.rocks){if(r.y<r.floor){r.vy+=60*DT;r.y=Math.min(r.floor,r.y+r.vy*DT);}}
+  if(m.rocks.length>60)m.rocks.splice(0,m.rocks.length-60);}
+ // scene
+ P(0,0,160,93,'#4f95e0');for(let x=0;x<160;x++){const h=12+8*Math.sin(x/17)+4*Math.sin(x/5);P(x,44-h,1,h,'#5372c9');P(x,44-h,1,2,'#eef2ff');}
+ P(0,85,160,8,C.dirt);for(let x=0;x<160;x+=5)P(x+(x%3),87+(x%4),2,1,C.dirt3);
+ // bench + pile
+ P(0,52,62,33,C.grey2);for(let y=54;y<85;y+=6)for(let x=(y%12?0:4);x<60;x+=9)P(x,y,6,3,C.grey);P(0,52,62,2,C.grey3);P(58,52,4,33,C.grey);
+ P(0,40,24,12,C.grey);P(2,36,18,6,C.grey2);P(4,33,12,4,C.grey);P(6,31,6,3,C.grey3);
+ excavator(24,52);
+ // truck (facing left) with fill
+ const tx=m.truckX;if(tx<160){rockTruck(tx,85,false);const fh=Math.min(8,m.loads/6*9);if(fh>0)P(tx+9,85-7-fh,20,fh,C.dirt3);}
+ // arm + bucket
+ const [bx,by]=bucketPos(m.s);const [px,py]=LD.pivot;const ex=px+(bx-px)*0.5,ey=py+(by-py)*0.5-16;
+ L(px,py,ex,ey,C.yellow,2.2);L(ex,ey,bx,by-2,C.yellow,1.8);L(px,py-1,ex,ey-1,C.yellow2,0.6);
+ P(bx-3,by-2,7,5,C.grey2);P(bx-3,by+3,7,1,C.grey3);if(m.full){P(bx-2,by-4,5,2,C.dirt3);P(bx-1,by-5,3,1,C.grey);}
+ for(const r of m.rocks)P(r.x,r.y,1,1,r.c);
+ // target zone marker
+ if(m.phase==='play'&&m.leaving<=0&&m.arriving<=0){P(tx+8,85-19,22,1,m.s>=0.84?'#00ff66':'#ffd400');}
+ }finally{PX=4;}
+ ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
+ txt(`TRUCKS LOADED ${m.trucks}   THIS TRUCK ${m.loads}/6   SPILLS ${m.spills}/4   TIME ${Math.ceil(m.timeLeft)}s`,16,8,30,'#fff');
+ if(m.flash>0)txt(m.flashTxt,640,300,90,m.flashTxt==='SPILL!'?'#ff4040':'#00ff66','center');ctx.restore();
+ if(m.phase==='over')endLoad();}
+function endLoad(){const m=S.mg;const n=m.trucks;let text,fx={},bonus=0.05*n;
+ if(m.spills>=4){text=`Tanya shut the pit down after your fourth spill. ${n} truck${n===1?'':'s'} loaded, ${m.spills} spills, one very long meeting about "line of fire".`;fx={weeks:1,health:-4,loss:m.spills*8000};}
+ else if(n>=5){text=`${n} trucks loaded in thirty seconds. Lenny says "not bad", which from Lenny is a parade. Louie is sulking.`;fx={health:4,loss:m.spills*8000};}
+ else if(n>=3){text=`${n} trucks loaded. Adequate. Scott has seen worse, mostly from Adam. ${m.spills?m.spills+' spill'+(m.spills>1?'s':'')+' at $8,000 a tire.':'No spills. Tanya is suspicious.'}`;fx={health:1,loss:m.spills*8000};}
+ else{text=`${n} truck${n===1?'':'s'} loaded. The excavator operator has been called back from Calgary. So has Fredis, who watched the whole thing in silence.`;fx={health:-2,loss:m.spills*8000};bonus=0.02*n;}
+ mgFinish(text,fx,bonus);}
+// ---- Cut the grade ----
+function drawMGGrade(t){const m=S.mg;PX=8;try{
+ const bxCol=()=>Math.round(m.gx+16);
+ if(m.phase==='play'){const prev=bxCol();m.gx+=6.8*DT;
+  const col=Math.max(0,Math.min(159,bxCol()));const dmin=m.design[col]-14,dmax=m.design[col]+7;
+  let tgt=m.target;if(KEYS.has('ArrowUp')||KEYS.has('w'))tgt=m.by-8;if(KEYS.has('ArrowDown')||KEYS.has('s'))tgt=m.by+8;
+  if(tgt!==null&&tgt!==undefined){const d=tgt-m.by;m.by+=Math.sign(d)*Math.min(Math.abs(d),34*DT);}
+  m.by=Math.max(dmin,Math.min(dmax,m.by));
+  for(let c=prev;c<=bxCol();c++){if(c<0||c>159)continue;const b=Math.round(m.by);if(m.ground[c]<b){m.ground[c]=b;for(let i=0;i<3;i++)m.dust.push({x:c-1-Math.random()*3,y:b-1-Math.random()*3,l:0.6+Math.random()*0.5});}}
+  for(const d of m.dust){d.l-=DT;d.y-=8*DT;d.x-=4*DT;}m.dust=m.dust.filter(d=>d.l>0);
+  if(m.gx>168)m.phase='over';}
+ P(0,0,160,93,'#4f95e0');for(let x=0;x<160;x++){const h=12+8*Math.sin(x/17+1)+4*Math.sin(x/5);P(x,44-h,1,h,'#5372c9');P(x,44-h,1,2,'#eef2ff');}
+ P(0,40,160,6,C.grass);for(let x=0;x<160;x+=7)tree(x+(x%3),33+(x%2));
+ for(let x=0;x<160;x++){const g=m.ground[x];P(x,g,1,93-g,C.dirt);P(x,g,1,1,C.dirt3);if(x<Math.round(m.gx+16)&&Math.abs(g-m.design[x])>1)P(x,g,1,1,g<m.design[x]?'#ff5050':'#ff9a00');}
+ for(let x=0;x<160;x+=3){P(x,m.design[x],2,1,'#ffd400');}  // string line
+ for(const d of m.dust){ctx.globalAlpha=Math.min(1,d.l);P(d.x,d.y,1,1,'#d9c8a8');}ctx.globalAlpha=1;
+ // grader riding on cut surface
+ const gx=m.gx;const rc=Math.max(0,Math.min(159,Math.round(gx+30)));const base=m.ground[rc];
+ grader(gx,base,true);
+ const bx=gx+16,by=m.by;L(gx+14,base-8,bx,by-2,C.grey2,0.8);L(gx+20,base-8,bx+2,by-2,C.grey2,0.8);P(bx-5,by-3,11,2,C.grey3);P(bx-5,by-1,11,1,C.grey2);
+ }finally{PX=4;}
+ const upto=Math.max(0,Math.min(160,Math.round(m.gx+16)));let good=0,high=0,low=0;for(let x=0;x<upto;x++){const d=m.ground[x]-m.design[x];if(Math.abs(d)<=1)good++;else if(d<0)high++;else low++;}
+ ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
+ txt(`ON GRADE ${upto?Math.round(good/upto*100):0}%   HIGH ${high}   OVERCUT ${low}`,16,8,30,'#fff');
+ txt(TOUCH?'Drag up/down to set the blade. Ride the yellow string line.':'UP/DOWN sets the blade. Ride the yellow string line.',16,40,26,'#ffd400');ctx.restore();
+ if(m.phase==='over')endGrade(good,high,low);}
+function endGrade(good,high,low){const pct=Math.round(good/160*100);let text,fx={},bonus=0;
+ if(pct>=80){text=`${pct}% on grade. Mel walks the whole ${high} high spot${high===1?'':'s'} and ${low} overcut${low===1?'':'s'} with his own tape, finds nothing to say, and leaves. Lenny is quietly proud.`;fx={health:4};bonus=0.15;}
+ else if(pct>=55){text=`${pct}% on grade. ${high} high spots, ${low} overcuts. Mel writes "acceptable" with a question mark. Louie fixes the rest with the small dozer and does not mention it.`;fx={health:1};bonus=0.06;}
+ else{text=`${pct}% on grade. Mel's tape came out. Then his phone. Then Andy's phone. Re-grade: one week, and Louie is telling everyone he could have done it blindfolded.`;fx={weeks:1,loss:60000,health:-3};}
+ mgFinish(text,fx,bonus);}
+const MG_INTRO={load:"LOAD THE ROCK TRUCKS.  Lenny: 'The pit's backed up. Get in the excavator.'\nThe bucket swings from the pile to the truck. TAP (or SPACE) to dump when the bucket is over the box, when the bar turns green. Six buckets fills a truck. Spill four and Tanya shuts you down. Thirty seconds.",
+ grade:"CUT THE GRADE.  Lenny: 'Grade's yours. Don't embarrass me in front of Mel.'\nThe grader drives itself. You control the blade: drag up and down on the screen (or UP/DOWN keys). Shave the ground down to the yellow string line. High spots are red, overcuts are orange, and Mel counts both."};
+
 // ---------------- UI helpers ----------------
 function hud(){ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=0;ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;txt(`WEEK ${S.week}   KM ${S.km.toFixed(1)}/6   LOSS ${fmt(S.loss)}   DIESEL ${S.fuel.toLocaleString()} L   COFFEE ${S.coffee}   ${S.weather.toUpperCase()}`,16,8,28,'#fff');
  const m=MILESTONES[S.msIndex];txt(m?`NEXT: ${m.name.toUpperCase()} (KM ${m.km}, DEADLINE WEEK ${m.deadline})`:'SUBSTANTIAL COMPLETION. MEL HAS A LIST.',16,36,26,'#ffd400');ctx.restore();}
@@ -379,8 +477,8 @@ function boxText(text,hint,opts){box();const o=opts||{};let size=36;let ls=wrap(
  const lh=size*0.92;let y=o.top||(hint?778:790);if(!hint&&ls.length<4)y=790+(4-ls.length)*lh/2;
  for(const l of ls){txt(l,640,y,size,'#fff','center');y+=lh;}
  if(hint)txt(hint,640,905,30,'#bdbdbd','center');}
-function boxMenu(title,items,sel,extra){box();let y=772;const size=items.length>5?27:30;if(title){txt(title,640,y,size,'#fff','center');y+=size;}
- items.forEach((it,i)=>{const on=i===sel;txt((on?'> ':'  ')+(i+1)+'. '+it,80,y,size,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-4,y1:y+size*0.95,key:String(i+1)});y+=size*0.95;});
+function boxMenu(title,items,sel,extra){box();let y=772;const size=items.length>8?24:items.length>5?27:30;if(title){txt(title,640,y,size,'#fff','center');y+=size;}
+ items.forEach((it,i)=>{const on=i===sel;txt((on?'> ':'  ')+(i+1)+'. '+it,80,y,size,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-4,y1:y+size*0.95,key:String(i+1)});y+=size*(items.length>8?0.85:0.95);});
  if(extra)txt(extra,640,915,26,'#bdbdbd','center');}
 function menuKey(k,n){if(k==='ArrowUp')S.sel=(S.sel+n-1)%n;else if(k==='ArrowDown')S.sel=(S.sel+1)%n;else if(/^[1-9]$/.test(k)&&+k<=n)return +k-1;else if(k==='Enter'||k===' ')return S.sel;return -1;}
 function healthWord(h){return h>75?'Good':h>50?'Fair':h>25?'Poor':'Very poor';}
@@ -390,6 +488,9 @@ const DRAW={
  gate(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],fredisAway:0},t);
   ctx.save();txt('SELKIRK TRAIL',646,126,150,'#000','center');txt('SELKIRK TRAIL',640,120,150,'#ffd400','center');ctx.restore();
   box();txt('This site is for the Selkirk crew only.',640,785,36,'#fff','center');txt(S.gateMsg||'Ask whoever sent you the link for the access code.',640,835,30,'#ffd400','center');txt(TOUCH?'Tap to enter the code.':'Press ENTER to enter the code.',640,905,30,'#bdbdbd','center');},
+ mgIntro(t){const m=S.mg;(m.type==='load'?drawMGLoad:drawMGGrade)(t);boxText(MG_INTRO[m.type],TOUCH?'Tap to start.':'Press ENTER to start.');},
+ mgLoad(t){drawMGLoad(t);if(S.mg){box();txt(TOUCH?'TAP to dump the bucket when the bar over the truck is green.':'SPACE or ENTER to dump the bucket when the bar over the truck is green.',640,830,34,'#fff','center');}},
+ mgGrade(t){drawMGGrade(t);if(S.mg){box();txt(TOUCH?'Hold and drag up or down to move the blade.':'Hold UP or DOWN to move the blade.',640,830,34,'#fff','center');}},
  title(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],fredisAway:0},t);
   ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=0;txt('SELKIRK TRAIL',646,126,150,'#000','center');txt('SELKIRK TRAIL',640,120,150,'#ffd400','center');ctx.restore();
   txt('A Golden, BC construction tragedy in six kilometres',640,262,40,'#fff','center');
@@ -413,7 +514,7 @@ const DRAW={
   box();txt(S.storeMsg||'Everything is on EllisDon\'s account. Andy will see the invoice.',640,830,32,'#fff','center');},
  travel(t){drawScene(viewFromState(),t);hud();box();
   txt(S.moving?'Travelling the Selkirk Trail...':'Paused.',640,790,36,'#fff','center');txt(`Pace: ${PACES[S.pace]}   Coffee: ${RATIONS[S.ration]}`,640,840,28,'#bdbdbd','center');txt(TOUCH?'Tap for the site menu.':'Press ENTER for the site menu.',640,900,30,'#bdbdbd','center');},
- menu(t){drawScene(viewFromState(),t);hud();boxMenu('',['Continue on the trail','Check crew and supplies',`Change pace (${PACES[S.pace]})`,`Change coffee rations (${RATIONS[S.ration]})`,'Rest for a week','Call Andy','Talk to Tanya','Talk to Fredis'],S.sel,'');},
+ menu(t){drawScene(viewFromState(),t);hud();boxMenu('',['Continue on the trail','Check crew and supplies',`Change pace (${PACES[S.pace]})`,`Change coffee rations (${RATIONS[S.ration]})`,'Rest for a week','Call Andy','Talk to Tanya','Talk to Fredis','Load rock trucks (mini-game, 1 week)','Run the grader (mini-game, 1 week)'],S.sel,'');},
  pace(t){drawScene(viewFromState(),t);hud();boxMenu('Set the pace:',PACES.map((p,i)=>p+['  -  slow, safe, Mel approves','  -  faster, crew tires, burn rate up','  -  fastest, crew breaks, Andy loves it'][i]),S.sel,'');},
  ration(t){drawScene(viewFromState(),t);hud();boxMenu('Set the coffee rations:',RATIONS.map((p,i)=>p+['  -  14 cups/week each, crew thrives','  -  7 cups/week each','  -  3 cups/week each, morale dies'][i]),S.sel,'');},
  status(t){drawScene(viewFromState(),t);ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(60,30,1160,690);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(60,30,1160,690);
@@ -447,6 +548,9 @@ function score(){const a=alive().length;let pts=a*500+Math.max(0,45000000-S.loss
 
 const KEY={
  gate(k){if(k==='Enter'||k===' ')askGate();},
+ mgIntro(k){if(k==='Enter'||k===' '){S.mg.phase='play';S.screen=S.mg.type==='load'?'mgLoad':'mgGrade';}},
+ mgLoad(k){if(k==='Enter'||k===' ')dumpBucket();},
+ mgGrade(k){},
  title(k){const i=menuKey(k,3);if(i===0){const nm=S.name;newGame();S.name=nm;S.screen='intro';S.page=0;}else if(i===1){S.screen='about';S.page=0;}else if(i===2){show({t:"There is no Top Ten. Andy deleted it after someone put Mel in the number one spot."});S.ret='title';}},
  intro(k){if(k==='Enter'||k===' '){if(++S.page>=INTRO.length){S.screen='name';}}},
  about(k){if(k==='Enter'||k===' '){if(++S.page>=ABOUT.length){S.screen='title';S.sel=0;}}},
@@ -461,7 +565,7 @@ const KEY={
    if(S.dozers===0)show({t:"Lenny: 'No dozer? We're clearing six kilometres of mountain with a pickup and vibes?' Progress will be slow."});}
   else if(k==='Enter'){const it=STORE[S.sel];if(S.cash>=it.price&&!(it.max&&S[it.key]>=it.max)){S.cash-=it.price;S[it.key]+=it.step;S.storeMsg=`Bought ${it.name}.`;}}},
  travel(k){if(k==='Enter'||k===' '||k==='Escape'){S.moving=false;S.screen='menu';S.sel=0;}},
- menu(k){const i=menuKey(k,8);if(i===0){S.screen='travel';S.moving=true;}else if(i===1)S.screen='status';else if(i===2){S.screen='pace';S.sel=S.pace;}else if(i===3){S.screen='ration';S.sel=S.ration;}
+ menu(k){const i=menuKey(k,10);if(i===8){if(S.trucks>0)startMG('load');else{S.ret='menu';show({t:"No rock trucks to load. Lenny laughs for a long time."});}return;}if(i===9){if(S.graders>0)startMG('grade');else{S.ret='menu';show({t:"No grader. Louie offers to 'eyeball it' with the dozer. Mel would notice."});}return;}if(i===0){S.screen='travel';S.moving=true;}else if(i===1)S.screen='status';else if(i===2){S.screen='pace';S.sel=S.pace;}else if(i===3){S.screen='ration';S.sel=S.ration;}
   else if(i===7){S.ret='menu';if(!fredisAlive())show({t:"Fredis is gone. His hard hat is still on the hook. Nobody will touch it."});else if(!fredisHere())show({t:"Fredis is in Calgary. Nobody knows why. Nobody will ask."});else show({t:rnd(FREDIS_TALK)});}
   else if(i===4){S.week++;S.loss+=burn();for(const p of alive()){p.health=Math.min(100,p.health+15);p.cond=null;}S.ret='menu';show({t:rnd(["The crew rests for a week. Andy notices. Andy always notices.","A week off. Louie goes fishing. Scott goes to Calgary. Lenny reads the spec. Nobody knows why.","Rest week. Tanya holds an optional safety meeting. Attendance is mandatory."])});}
   else if(i===5){for(const p of alive())p.health=Math.max(1,p.health-2);S.ret='menu';show({t:rnd(ANDY_CALLS)});}
@@ -481,17 +585,22 @@ function finishMsg(){const r=S.ret||'travel';S.ret='travel';if(S.screen!=='msg')
 
 // ---------------- loop + input ----------------
 let last=0;
-function frame(ms){const t=ms/1000;if(S.screen==='travel'&&S.moving&&ms-S.lastTick>850){S.lastTick=ms;tick();}
+function frame(ms){const t=ms/1000;DT=Math.min(0.05,Math.max(0,(ms-lastMs)/1000));lastMs=ms;if(S.screen==='travel'&&S.moving&&ms-S.lastTick>850){S.lastTick=ms;tick();}
  ctx.imageSmoothingEnabled=false;HIT=[];(DRAW[S.screen]||DRAW.title)(t);requestAnimationFrame(frame);}
-document.addEventListener('keydown',e=>{const k=e.key;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','Backspace'].includes(k))e.preventDefault();(KEY[S.screen]||KEY.title)(k);});
+document.addEventListener('keyup',e=>KEYS.delete(e.key));
+document.addEventListener('keydown',e=>{const k=e.key;KEYS.add(k);if(e.repeat&&['mgGrade','mgLoad'].includes(S.screen))return;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','Backspace'].includes(k))e.preventDefault();(KEY[S.screen]||KEY.title)(k);});
 function canvasPoint(e){const r=cv.getBoundingClientRect();if(r.height>r.width)return{x:(e.clientY-r.top)/r.height*1280,y:(r.right-e.clientX)/r.width*960};return{x:(e.clientX-r.left)/r.width*1280,y:(e.clientY-r.top)/r.height*960};}
 cv.addEventListener('pointerdown',e=>{e.preventDefault();try{cv.focus();}catch(_){}
  const p=canvasPoint(e);const h=HIT.find(z=>p.x>=z.x0&&p.x<=z.x1&&p.y>=z.y0&&p.y<=z.y1);
  if(S.screen==='gate'){askGate();return;}
+ if(S.screen==='mgGrade'&&S.mg){S.mg.pointerDown=true;S.mg.target=p.y/8;return;}
+ if(S.screen==='mgLoad'){dumpBucket();return;}
  if(S.screen==='name'){const v=prompt('What is your name, boss?',S.name);if(v!==null)S.name=v.trim().slice(0,14)||'Boss';KEY.name('Enter');return;}
  if(S.screen==='store'){if(!h)return;if(h.key==='go'){S.sel=STORE.length;KEY.store('Enter');return;}const [act,i]=h.key.split(':');S.sel=+i;if(act==='plus')KEY.store('ArrowRight');else if(act==='minus')KEY.store('ArrowLeft');return;}
  (KEY[S.screen]||KEY.title)(h?h.key:'Enter');});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('pointermove',e=>{if(S.screen==='mgGrade'&&S.mg&&S.mg.pointerDown){S.mg.target=canvasPoint(e).y/8;}});
+const endDrag=()=>{if(S.mg){S.mg.pointerDown=false;S.mg.target=null;}};cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',endDrag);cv.addEventListener('pointerleave',endDrag);
 window.ST={CFG,get S(){return S;},set:o=>Object.assign(S,o),go:s=>{S.screen=s;},show,fire,gameover,newGame:()=>{newGame();},ROLES,MILESTONES};
 document.fonts&&document.fonts.load('36px "VT323"').then(()=>{}).catch(()=>{});
 requestAnimationFrame(frame);
