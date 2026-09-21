@@ -189,6 +189,8 @@ const EVENTS=[
  {w:3,t:"Lenny: 'Powder truck is here and the blaster called in sick. You have a ticket, right?' You do not have a ticket.",cond:s=>s.km>=1&&s.km<2,mg:'blast'},
  {w:3,t:"Fredis is standing on the abutment. The girder is on the hook. He points at you, then at the crane. That is the whole briefing.",cond:s=>s.crane>0&&s.km>=2&&s.km<3&&fredisHere(),mg:'pick'},
  {w:3,t:"Harsh: 'The ATP package is due at noon. I have... most of it.' It is 11:20.",mg:'paper'},
+ {w:3,t:"Scott: 'Hundred calls since six. You take it. I'm going to look at the bridge.' He hands you the phone. It is ringing.",mg:'phone'},
+ {w:3,t:"Adam: 'Culvert sections are here, trench is wet, pump's a bit temperamental.' Adam's crew is already standing in the water.",cond:s=>s.km>=1,mg:'pump'},
  // ---- Harsh ----
  {w:3,t:"Harsh submitted the QA package to the Ministry. It was 400 pages. Mel read all of it. It was 400 copies of the same page.",fx:{weeks:1,loss:90000}},
  {w:3,t:"Harsh's RFI response cites a spec clause that does not exist. Mel has asked for the clause. Harsh is now writing the clause.",fx:{weeks:1}},
@@ -217,7 +219,7 @@ const CFG={speed:0.14,evRate:0.42,illRate:0.07,burn:600000,lateKill:8};
 let S;
 function newGame(){S={screen:'title',week:1,km:0,loss:0,cash:0,fuel:0,coffee:0,vests:6,tracks:0,trucks:0,dozers:0,graders:0,crane:0,
  pace:0,ration:0,weather:'Clear',party:PARTY_DEF.map(p=>Object.assign({},p,{health:100,alive:true,cond:null,condWeeks:0,gone:''})),
- graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],fredisAway:0,fredisLeftAt:0,fredisRetAt:0,blasted:false,picked:false,papered:false};}
+ graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],fredisAway:0,fredisLeftAt:0,fredisRetAt:0,blasted:false,picked:false,papered:false,phoned:false,pumped:false};}
 newGame();if(!gateOpen())S.screen='gate';
 const alive=()=>S.party.filter(p=>p.alive);
 const fredisHere=()=>{const f=S.party.find(p=>p.name==='Fredis');return !!(f&&f.alive)&&S.fredisAway<=0;};
@@ -269,6 +271,8 @@ function tick(){
  const next=MILESTONES[S.msIndex];
  S.km=Math.min(S.km+speed,next.km);
  if(S.km>=next.km){reachMilestone(next);return;}
+ if(!S.phoned&&S.km>=0.5&&S.km<1){S.phoned=true;show({t:"Scott's phone has not stopped since mobilization. He hands it to you and walks toward the bridge without a word.",then:()=>startMG('phone')});return;}
+ if(!S.pumped&&S.km>=4.5&&S.km<5){S.pumped=true;show({t:"Cross culvert at 4+600. Adam's crew has the trench open. It has been raining since Tuesday.",then:()=>startMG('pump')});return;}
  if(!S.blasted&&S.km>=1.4&&S.km<2){S.blasted=true;show({t:"Lenny: 'Holes are drilled. Powder truck's here. You're loading.'",then:()=>startMG('blast')});return;}
  if(!S.papered&&S.km>=3.3&&S.km<4){S.papered=true;show({t:"Mel wants the ATP package for the multiplate by noon. Harsh has been 'compiling'. You have seen what Harsh compiles.",then:()=>startMG('paper')});return;}
  if(!S.picked&&S.km>=2.4&&S.km<3&&S.crane>0){S.picked=true;show({t:fredisHere()?"Fredis walked out to the abutment, pointed at the girders, pointed at the crane, and crossed his arms.":"Fredis is in Calgary. The girders are here. Scott says 'you've seen him do it', which is not the same as knowing how.",then:()=>startMG('pick')});return;}
@@ -391,6 +395,8 @@ function startMG(type){S.moving=false;S.mg={type,phase:'intro',pointerDown:false
  if(type==='load'){Object.assign(S.mg,{s:0,dir:1,omega:0.55,full:true,loads:0,trucks:0,spills:0,timeLeft:MG_LOAD_TIME,rocks:[],truckX:72,leaving:0,arriving:0,flash:0,flashTxt:''});}
  else if(type==='blast'){const band=[];for(let i=0;i<8;i++){const c=18+Math.round(Math.random()*10);band.push([c-4,c+4]);}Object.assign(S.mg,{i:0,ch:0,dir:1,speed:26,charges:[],kind:[],band,parts:[],flash:0,flashTxt:'',t:0});}
  else if(type==='paper'){Object.assign(S.mg,{real:0,bs:0,shred:0,shredReal:0,timeLeft:30,doc:null,docLife:3.2,fly:0,flyDir:1,flash:0,flashTxt:''});}
+ else if(type==='phone'){Object.assign(S.mg,{good:0,bad:0,missed:0,timeLeft:60,call:null,callLife:7,gap:0.3,flash:0,flashTxt:''});}
+ else if(type==='pump'){Object.assign(S.mg,{wl:80,placed:0,placeT:0,primed:true,primeTaps:0,strokeT:performance.now()/1000,spray:0,handle:0,raining:false,rainT:4,timeLeft:45,dry:true,flash:0,flashTxt:''});}
  else if(type==='pick'){Object.assign(S.mg,{sets:0,misses:0,errs:[],cx:80,flash:0,flashTxt:'',t:0,lastErr:0});newGirder(S.mg);S.mg.phase='intro';}
  else{const design=[],ground=[];for(let x=0;x<160;x++){const d=62+Math.round(5*Math.sin(x/23)+2*Math.sin(x/7));design.push(d);let b=Math.round(Math.random()*7);if(Math.random()<0.1)b=-2;ground.push(d-b);}
   Object.assign(S.mg,{design,ground,gx:-30,by:design[0]-5,dust:[],cutCols:0});}
@@ -604,8 +610,116 @@ function endPaper(){const m=S.mg;let text,fx={},bonus=0;
  else if(m.real>=12&&m.bs===0){text=`${m.real} cut sheets in before the ATP deadline and nothing weird in the package. Mel signed without a comment. Harsh has already put it on LinkedIn.`;fx={health:3};bonus=0.12;}
  else{text=`${m.real} sheets submitted, ${m.bs} piece${m.bs===1?'':'s'} of nonsense slipped through, ${m.shredReal} of Lenny's real ones shredded. Mel signed the ATP 'with conditions'. Lenny's crew waited ${m.shredReal*2} hours for elevations.`;fx={loss:m.bs*30000+m.shredReal*8000,health:m.bs?-1:1};bonus=m.real>=8?0.06:0.02;}
  mgFinish(text,fx,bonus);}
-const MG_SCREEN={load:'mgLoad',grade:'mgGrade',blast:'mgBlast',pick:'mgPick',paper:'mgPaper'};const MG_DRAW={load:drawMGLoad,grade:drawMGGrade,blast:drawMGBlast,pick:drawMGPick,paper:drawMGPaper};
-const MG_INTRO={paper:"HARSH'S ATP PACKAGE.  Harsh: 'The ATP package is due at noon. I have... most of it.' It is 11:20.\nPapers land on the desk one at a time. Real cut sheets go OUT to Mel (tap the right side, or RIGHT arrow). Harsh's nonsense goes in the SHREDDER (tap the left side, or LEFT arrow). Three pieces of nonsense reach Mel and the ATP is denied. Thirty seconds.",
+// ---- Scott's phone (100 calls, answer the right way, fast) ----
+const CALLS=[
+ {c:'Mel (MOTI)',q:"Why is the barricade at 2+400 facing the wrong way?",a:["It's facing traffic, Mel. I'll send you the TMP page.","Which way is the right way?","Harsh set it up."]},
+ {c:'Andy Smith',q:"Is the bridge done?",a:["Girders are set. Deck pour Thursday if the weather holds.","Define done.","Fredis is in Calgary."]},
+ {c:'Lenny',q:"Rock trucks are lined up at the pit. Where's the excavator operator?",a:["Coming from the fuel truck. Two minutes.","Ask Louie.","Which pit?"]},
+ {c:'Louie',q:"The grader blade is in the creek. Do you want the long version?",a:["No. Get the dozer and pull it out before Tanya sees.","Yes. Tell me everything.","How is the blade in the creek?"]},
+ {c:'Tanya',q:"I need the hot work permit for the slash burn. Now.",a:["It's on the board in the trailer, signed this morning.","We don't do hot work.","Adam has it. Probably."]},
+ {c:'Harsh',q:"Mel wants compaction tests. Do I send the ones from the Surrey job?",a:["No. Send the ones from this job. The real ones.","Sure, he won't notice.","Which ones are real?"]},
+ {c:'Adam',q:"The labour crew found a toad. Do we stop?",a:["Yes. Call the environmental monitor and flag the spot.","No. Toads are fine.","Move the toad."]},
+ {c:'Fredis',q:"...",a:["Understood. Crane's back at seven.","Fredis? Hello?","Say something."]},
+ {c:'Concrete plant',q:"Your 40 cubes are batched. Where do you want them?",a:["Abutment two, Fredis is there. Chute from the east side.","Anywhere is fine.","We ordered 400."]},
+ {c:'Mel (MOTI)',q:"Your shoulders are 50 millimetres narrow.",a:["They're not. Meet me at 3+100 with a tape.","Okay, we'll add 50.","Harsh measured them."]},
+ {c:'Andy Smith',q:"Why did the burn rate go up this week?",a:["Overtime on the abutment pour. Normal Monday.","It didn't.","Ask accounting."]},
+ {c:'Girder trucker',q:"I've got 22 metres of girder and Highway 1 is closed. Where do I go?",a:["Wait at the Husky. I'll call when the gate opens.","Try the back road.","Denny's."]},
+ {c:'Lenny',q:"Survey stake at 2+060 is gone. Marmot or Fredis?",a:["Marmot. Get Louie to re-shoot it from control.","Fredis.","Does it matter?"]},
+ {c:'Tanya',q:"Who is on the D8 without a seatbelt?",a:["Louie. I'll talk to him now.","Nobody.","Define seatbelt."]},
+ {c:'Harsh',q:"ATP package is due at noon. It's 11:40. I have most of it.",a:["Bring what you have. Real sheets only. I'll sign.","Send it anyway.","Which package?"]},
+ {c:'Mel (MOTI)',q:"Where are the animals?",a:["The crossing opened yesterday. Give the moose a week.","There are no animals.","Ask Adam."]},
+ {c:'Adam',q:"Pump's losing prime and the trench is filling. Keep placing?",a:["No. Crew out, re-prime, then back in.","Keep going, it's only water.","Float the sections in."]},
+ {c:'Louie',q:"Can I take the grader to Golden for lunch?",a:["No. Take the pickup like a person.","Sure, bring me a Timmies.","Only if Lenny says yes."]},
+ {c:'Andy Smith',q:"Mel says you hid behind the crane.",a:["I was inspecting the crane. Closely.","I was not hiding.","Which crane?"]},
+ {c:'Finning',q:"D8 final drive: new at $38,000 or a cheaper used one?",a:["New. Louie already broke the used one.","Used. Cheaper.","Ask Andy."]},
+ {c:'Lenny',q:"Blasting notice went to the Ministry, right?",a:["Yes, Tuesday. I have the email.","Which Ministry?","Harsh sent it. Maybe."]},
+ {c:'Tanya',q:"Someone's hi-vis is more of a beige.",a:["New vests are in the trailer. Handing them out now.","Beige is close enough.","It's Adam's."]},
+ {c:'Mel (MOTI)',q:"Your daily report says the bridge is complete.",a:["That's Harsh's draft. The real one is coming now.","It is complete.","Which bridge?"]},
+ {c:'Rock trucker',q:"Where's the scale?",a:["No scale. Load count at the pit, I sign the tickets.","Golden.","Ask Lenny."]},
+ {c:'Andy Smith',q:"Why is Fredis in Calgary again?",a:["Back tomorrow. The abutments are perfect.","I don't know.","Why is anyone anywhere?"]},
+ {c:'Adam',q:"Culvert sections are here. Crane or excavator?",a:["Excavator with chains. Tanya checks the rigging first.","Crane. Fredis has it.","Roll them in."]},
+ {c:'Louie',q:"I welded the gate shut. With the trucks inside.",a:["Cut it open. Grinder's in the pickup. Say nothing to Tanya.","Why?","Leave it, it's Friday."]},
+ {c:'Harsh',q:"Should the QA package be 400 pages or 40?",a:["40. Each page different.","400. More is better.","One page, 400 times."]},
+ {c:'Mel (MOTI)',q:"I'm coming at two to check the grade.",a:["Louie's on it. Crossfall will be two percent.","Come at three.","Bring your own tape."]},
+ {c:'Lenny',q:"The pit's backed up and I have six trucks idling.",a:["Loading in five. Send two to the multiplate for now.","Idling is fine.","Send them to lunch."]},
+ {c:'Andy Smith',q:"Is the bridge done?",a:["Still Thursday, Andy. Same as an hour ago.","Yes.","No."]},
+ {c:'Tanya',q:"Toolbox talk at seven. Topic?",a:["Line of fire, after the pit yesterday.","Ladders again.","Skip it."]},
+ {c:'Environmental monitor',q:"There's a grizzly in the multiplate.",a:["Crew stays clear, call the CO, we work the east end today.","It's fine, it's a small one.","Send Adam."]},
+ {c:'Wife',q:"Are you coming home this weekend?",a:["Saturday night. Sunday if Andy calls.","Define weekend.","Who is this?"]},
+ {c:'Golden RCMP',q:"There's an RV in your rock cut. Again.",a:["We'll get the dozer. Tell him it's the third time.","Leave it there.","Is the RV okay?"]},
+ {c:'Mel (MOTI)',q:"Your crossfall is two percent.",a:["Yes, Mel. That's the spec.","It's three.","Harsh says it's fine."]},
+];
+function newCall(m){const it=rnd(CALLS);const idx=[0,1,2].sort(()=>Math.random()-0.5);m.call={c:it.c,q:it.q,a:idx.map(i=>it.a[i]),correct:idx.indexOf(0),life:m.callLife,max:m.callLife};}
+function answerCall(i){const m=S.mg;if(!m||m.phase!=='play'||!m.call)return;if(i===m.call.correct){m.good++;m.flash=0.4;m.flashTxt='HANDLED';}else{m.bad++;m.flash=0.6;m.flashTxt=rnd(['MEL HEARD THAT','ANDY HEARD THAT','THAT WENT TO VOICEMAIL. THE WRONG VOICEMAIL.']);}
+ m.callLife=Math.max(3,m.callLife*0.95);m.call=null;m.gap=0.35;}
+function drawMGPhone(t){const m=S.mg;
+ if(m.phase==='play'){m.timeLeft-=DT;if(m.timeLeft<=0){m.timeLeft=0;m.phase='over';}if(m.flash>0)m.flash-=DT;
+  if(m.call){m.call.life-=DT;if(m.call.life<=0){m.missed++;m.flash=0.5;m.flashTxt='MISSED. THEY CALLED ANDY.';m.call=null;m.gap=0.35;}}
+  else{m.gap-=DT;if(m.gap<=0)newCall(m);}}
+ drawScene(viewFromState({moving:true}),t);
+ ctx.fillStyle='rgba(0,0,0,0.86)';ctx.fillRect(120,80,1040,640);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(120,80,1040,640);
+ ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
+ txt(`ANSWERED ${m.good}   WRONG ${m.bad}   MISSED ${m.missed}   STILL WAITING ${Math.max(0,100-m.good-m.bad-m.missed)}   ${Math.ceil(m.timeLeft)}s`,16,8,30,'#fff');ctx.restore();
+ if(m.call){const c=m.call;txt('INCOMING:  '+c.c.toUpperCase(),640,100,40,'#ffd400','center');
+  let y=160;for(const l of wrap(c.q,52)){txt(l,640,y,40,'#fff','center');y+=40;}y+=30;
+  c.a.forEach((a,i)=>{const ls=wrap(a,58);const h=ls.length*30+22;ctx.strokeStyle='#888';ctx.lineWidth=3;ctx.strokeRect(170,y,940,h);txt((i+1)+'.',190,y+10,32,'#ffd400');let yy=y+10;for(const l of ls){txt(l,235,yy,32,'#fff');yy+=30;}HIT.push({x0:170,x1:1110,y0:y,y1:y+h,key:String(i+1)});y+=h+14;});
+  const frac=c.life/c.max;ctx.fillStyle='#333';ctx.fillRect(170,690,940,14);ctx.fillStyle=frac>0.35?'#00cc55':'#ff4040';ctx.fillRect(170,690,940*frac,14);}
+ else txt('...ringing...',640,380,50,'#bdbdbd','center');
+ if(m.flash>0){ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;txt(m.flashTxt,640,640,m.flashTxt.length>14?34:60,m.flashTxt==='HANDLED'?'#00ff66':'#ff4040','center');ctx.restore();}
+ if(m.phase==='over')endPhone();}
+function endPhone(){const m=S.mg;let text,fx={},bonus=0;const left=Math.max(0,100-m.good-m.bad-m.missed);
+ if(m.bad>=8){text=`${m.good} calls handled, ${m.bad} handled badly, ${m.missed} missed. Andy heard about three of the bad ones. ${left} calls went to voicemail. Scott has never checked his voicemail.`;fx={loss:60000,health:-3};}
+ else if(m.good>=22&&m.bad<=2){text=`${m.good} calls handled in a minute, ${m.bad} wrong, ${m.missed} missed. ${left} still waiting. Scott says that's a quiet morning. Mel called back to say nothing, which is a first.`;fx={health:4};bonus=0.1;}
+ else{text=`${m.good} handled, ${m.bad} wrong, ${m.missed} missed, ${left} still ringing. Scott put the phone in the glovebox and went to look at the bridge. The phone is still ringing in the glovebox.`;fx={loss:m.bad*8000,health:m.missed>5?-2:1};bonus=m.good>=12?0.05:0.02;}
+ mgFinish(text,fx,bonus);}
+// ---- Adam's dewatering (keep the culvert trench dry while the crew places sections) ----
+function pumpStroke(){const m=S.mg;if(!m||m.phase!=='play')return;const now=performance.now()/1000;
+ if(!m.primed){m.primeTaps++;m.strokeT=now;if(m.primeTaps>=3){m.primed=true;m.primeTaps=0;m.flash=0.4;m.flashTxt='PRIMED';}return;}
+ m.wl=Math.min(85,m.wl+2.4);m.strokeT=now;m.spray=0.25;m.handle=1;}
+function culvert(x,y){P(x,y,14,12,C.grey);for(let i=0;i<14;i+=2)P(x+i,y,1,12,C.grey3);P(x+3,y+3,8,6,'#222');P(x,y+11,14,1,C.grey2);}
+function drawMGPump(t){const m=S.mg;PX=8;try{
+ const now=performance.now()/1000;
+ if(m.phase==='play'){m.timeLeft-=DT;if(m.timeLeft<=0){m.timeLeft=0;m.phase='over';}
+  m.rainT-=DT;if(m.rainT<=0){m.raining=!m.raining;m.rainT=m.raining?2.5+Math.random()*2:4+Math.random()*4;}
+  const inflow=1.6+(m.raining?3.2:0)+m.placed*0.25;m.wl-=inflow*DT;
+  if(m.primed&&now-m.strokeT>1.8){m.primed=false;m.primeTaps=0;m.flash=0.8;m.flashTxt='LOST PRIME. THREE TAPS.';}
+  if(m.wl<=50){m.wl=50;m.phase='flood';}
+  const dry=m.wl>=78;m.dry=dry;if(dry){m.placeT+=DT;if(m.placeT>=4){m.placeT=0;m.placed++;m.flash=0.5;m.flashTxt='SECTION '+m.placed+' IN';if(m.placed>=6)m.phase='over';}}
+  if(m.spray>0)m.spray-=DT;if(m.handle>0)m.handle-=DT*4;if(m.flash>0)m.flash-=DT;}
+ // scene
+ P(0,0,160,93,m.raining?'#6f7f95':'#4f95e0');for(let x=0;x<160;x++){const h=10+7*Math.sin(x/21+3)+3*Math.sin(x/6);P(x,44-h,1,h,'#5372c9');P(x,44-h,1,2,'#eef2ff');}
+ P(0,44,160,4,C.grass);P(0,48,160,45,C.dirt);for(let x=0;x<160;x+=5)P(x+(x%3),52+(x*7%37),2,1,C.dirt3);
+ // creek at left
+ P(0,74,22,11,C.water);P(0,74,22,1,C.water2);for(let i=0;i<5;i++)P(2+((i*5+Math.floor(t*5))%18),77+(i%3)*2,2,1,C.water2);
+ // trench
+ P(30,50,100,35,C.dirt2);P(30,50,1,35,C.dirt4);P(129,50,1,35,C.dirt4);P(30,84,100,1,C.dirt4);
+ for(let i=0;i<m.placed;i++)culvert(33+i*16,64);
+ for(let x=30;x<130;x+=4)P(x,76,2,1,'#ffd400');   // bed line
+ if(m.wl<85){ctx.globalAlpha=0.85;P(30,m.wl,100,85-m.wl,C.water);ctx.globalAlpha=1;P(30,m.wl,100,1,C.water2);}
+ // discharge hose along the surface to the creek, suction hose into the trench
+ P(20,47,116,1,'#222');L(136,48,124,m.wl+2,'#222',0.6);L(22,47,14,72,'#222',0.6);
+ if(m.spray>0){for(let i=0;i<6;i++)P(10+i*2-Math.random()*3,70+i*1.5,1,1,C.water2);}
+ // pump + Adam + crew
+ P(134,40,16,8,C.yellow);P(134,40,16,1,C.yellow2);P(136,36,6,4,C.grey2);P(146,42,4,3,'#222');const ha=m.handle>0?-6:0;L(142,40,148,32+ha,C.grey3,0.8);
+ person(152,48,{hat:'#f2c400',shirt:'#2a6fdb'});
+ if(m.dry){person(96,76,{hat:'#f2c400',shirt:'#3b3b3b'});person(110,76,{hat:'#f2c400',shirt:'#8a2a2a'});}
+ else{person(60,48,{hat:'#f2c400',shirt:'#3b3b3b'});person(70,48,{hat:'#f2c400',shirt:'#8a2a2a'});}
+ if(m.raining)for(const f of FLAKES)L((f.x+t*20*f.v)%160,(f.y+t*90*f.v)%93,((f.x+t*20*f.v)%160)+0.5,((f.y+t*90*f.v)%93)+2.5,'#9fc7ff',0.25);
+ }finally{PX=4;}
+ ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
+ txt(`SECTIONS ${m.placed}/6   PUMP ${m.primed?'PRIMED':'NO PRIME ('+m.primeTaps+'/3)'}   ${m.raining?'RAIN   ':''}TIME ${Math.ceil(m.timeLeft)}s`,16,8,30,'#fff');
+ txt(m.dry?'Trench dry. Crew placing.':'Water over the bed. Crew is out. PUMP.',16,40,26,m.dry?'#00ff66':'#ff8080');
+ if(m.flash>0)txt(m.flashTxt,640,300,m.flashTxt.length>12?50:80,m.flashTxt.startsWith('LOST')?'#ff4040':'#00ff66','center');ctx.restore();
+ if(m.phase==='over'||m.phase==='flood')endPump();}
+function endPump(){const m=S.mg;let text,fx={},bonus=0;
+ if(m.phase==='flood'){text="Trench flooded. Two culvert sections floated toward Golden. Adam says the pump was 'fine' and the water was 'aggressive'. Lenny is bringing the big pump and a look.";fx={weeks:1,loss:80000,health:-2};}
+ else if(m.placed>=6){text="Six sections in, trench dry, crew out. Adam's crew lit a fire to warm up and were told to put it out. They did not. Mel arrived, looked in the trench, and left.";fx={health:3};bonus=0.12;}
+ else{text=`${m.placed} of 6 sections in before dark. The rest tomorrow, if the rain stops. It will not stop. Adam has named the pump.`;fx={health:m.placed>=3?1:-1};bonus=0.02*m.placed;}
+ mgFinish(text,fx,bonus);}
+const MG_SCREEN={load:'mgLoad',grade:'mgGrade',blast:'mgBlast',pick:'mgPick',paper:'mgPaper',phone:'mgPhone',pump:'mgPump'};const MG_DRAW={load:drawMGLoad,grade:drawMGGrade,blast:drawMGBlast,pick:drawMGPick,paper:drawMGPaper,phone:drawMGPhone,pump:drawMGPump};
+const MG_INTRO={phone:"SCOTT'S PHONE.  Scott: 'Hundred calls since six. You take it. I'm going to look at the bridge.'\nCalls come in one after another: Mel, Andy, Lenny, Louie, Tanya, Harsh, Adam, the plant, the truckers. Tap the answer a site super would actually give (or press 1, 2, 3) before the bar runs out. Wrong answers get back to Andy. Sixty seconds.",
+ pump:"ADAM'S DEWATERING.  Adam: 'Culvert sections are here, trench is wet, pump's a bit temperamental.'\nTAP (or any key) to work the pump handle and keep the water below the yellow bed line so the crew can place. Six sections. Rain comes in bursts. Stop tapping for two seconds and the pump loses prime: three taps to get it back. Fill the trench to the top and it floods.",
+ paper:"HARSH'S ATP PACKAGE.  Harsh: 'The ATP package is due at noon. I have... most of it.' It is 11:20.\nPapers land on the desk one at a time. Real cut sheets go OUT to Mel (tap the right side, or RIGHT arrow). Harsh's nonsense goes in the SHREDDER (tap the left side, or LEFT arrow). Three pieces of nonsense reach Mel and the ATP is denied. Thirty seconds.",
  blast:"BLAST THE ROCK CUT.  Lenny: 'Holes are drilled. Powder truck's here. You're loading.'\nThe charge in each hole rises and falls. TAP (or SPACE) to lock it inside the green band. Too light leaves toe for the hoe ram. Too heavy is flyrock, and the pickup is parked right there. Eight holes, then Tanya blows the horn.",
  pick:"SET THE GIRDERS.  Fredis is on the abutment. He has not spoken. He will not speak.\nThe girder swings on the hook. TAP (or SPACE) to lower it, and it keeps swinging on the way down. Land both ends on the green seats. Three girders. Two in the creek and Fredis leaves for the airport.",
  load:"LOAD THE ROCK TRUCKS.  Lenny: 'The pit's backed up. Get in the excavator.'\nThe bucket swings from the pile to the truck. TAP (or SPACE) to dump when the bucket is over the box, when the bar turns green. Six buckets fills a truck. Spill four and Tanya shuts you down. Thirty seconds.",
@@ -619,8 +733,8 @@ function boxText(text,hint,opts){box();const o=opts||{};let size=36;let ls=wrap(
  const lh=size*0.92;let y=o.top||(hint?778:790);if(!hint&&ls.length<4)y=790+(4-ls.length)*lh/2;
  for(const l of ls){txt(l,640,y,size,'#fff','center');y+=lh;}
  if(hint)txt(hint,640,905,30,'#bdbdbd','center');}
-function boxMenu(title,items,sel,extra){box();let y=772;const size=items.length>8?24:items.length>5?27:30;if(title){txt(title,640,y,size,'#fff','center');y+=size;}
- items.forEach((it,i)=>{const on=i===sel;txt((on?'> ':'  ')+(i+1)+'. '+it,80,y,size,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-4,y1:y+size*0.95,key:String(i+1)});y+=size*(items.length>8?0.85:0.95);});
+function boxMenu(title,items,sel,extra){box();let y=772;const size=items.length>7?21:items.length>5?27:30;if(title){txt(title,640,y,size,'#fff','center');y+=size;}
+ items.forEach((it,i)=>{const on=i===sel;txt((on?'> ':'  ')+(i+1)+'. '+it,80,y,size,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-4,y1:y+size*0.95,key:String(i+1)});y+=size*(items.length>7?0.9:0.95);});
  if(extra)txt(extra,640,915,26,'#bdbdbd','center');}
 function menuKey(k,n){if(k==='ArrowUp')S.sel=(S.sel+n-1)%n;else if(k==='ArrowDown')S.sel=(S.sel+1)%n;else if(/^[1-9]$/.test(k)&&+k<=n)return +k-1;else if(k==='Enter'||k===' ')return S.sel;return -1;}
 function healthWord(h){return h>75?'Good':h>50?'Fair':h>25?'Poor':'Very poor';}
@@ -631,10 +745,12 @@ const DRAW={
   ctx.save();txt('SELKIRK TRAIL',646,126,150,'#000','center');txt('SELKIRK TRAIL',640,120,150,'#ffd400','center');ctx.restore();
   box();txt('This site is for the Selkirk crew only.',640,785,36,'#fff','center');txt(S.gateMsg||'Ask whoever sent you the link for the access code.',640,835,30,'#ffd400','center');txt(TOUCH?'Tap to enter the code.':'Press ENTER to enter the code.',640,905,30,'#bdbdbd','center');},
  mgIntro(t){const m=S.mg;MG_DRAW[m.type](t);boxText(MG_INTRO[m.type],TOUCH?'Tap to start.':'Press ENTER to start.');},
+ mgPhone(t){drawMGPhone(t);if(S.mg){box();txt(TOUCH?'Tap the answer. Fast.':'Press 1, 2 or 3. Fast.',640,830,34,'#fff','center');}},
+ mgPump(t){drawMGPump(t);if(S.mg){box();txt(TOUCH?'TAP TAP TAP to pump. Keep the water under the yellow line.':'Mash SPACE to pump. Keep the water under the yellow line.',640,830,34,'#fff','center');}},
  mgPaper(t){drawMGPaper(t);if(S.mg){box();ctx.strokeStyle='#ff6060';ctx.lineWidth=4;ctx.strokeRect(80,790,500,110);ctx.strokeStyle='#60ff90';ctx.strokeRect(700,790,500,110);txt('SHRED',330,812,60,'#ff6060','center');txt('SUBMIT TO MEL',950,812,60,'#60ff90','center');txt(TOUCH?'tap the left side':'LEFT arrow',330,872,22,'#bdbdbd','center');txt(TOUCH?'tap the right side':'RIGHT arrow or ENTER',950,872,22,'#bdbdbd','center');HIT.push({x0:0,x1:640,y0:0,y1:960,key:'shred'});HIT.push({x0:640,x1:1280,y0:0,y1:960,key:'submit'});}},
  mgBlast(t){drawMGBlast(t);if(S.mg){box();txt(S.mg.phase==='play'?(TOUCH?'TAP to lock the charge when it is in the green band.':'SPACE to lock the charge when it is in the green band.'):'Stand back.',640,830,34,'#fff','center');}},
  mgPick(t){drawMGPick(t);if(S.mg){box();txt(TOUCH?'TAP to lower. Both ends on the green seats. Fredis is watching.':'SPACE to lower. Both ends on the green seats. Fredis is watching.',640,830,34,'#fff','center');}},
- mgMenu(t){drawScene(viewFromState(),t);hud();boxMenu('Mini-games. Each one is a week of real work.',['Load the rock trucks (excavator)','Blast the rock cut (powder)','Set the girders (crane, Fredis)','Cut the grade (grader)',"Harsh's ATP package (paperwork)",'Back'],S.sel,'');},
+ mgMenu(t){drawScene(viewFromState(),t);hud();boxMenu('',["Lenny: load the rock trucks (excavator)","Tanya: blast the rock cut (powder)","Fredis: set the girders (crane)","Louie: cut the grade (grader)","Harsh: the ATP package (paperwork)","Scott: the phone (100 calls)","Adam: dewatering (culvert trench)",'Back'],S.sel,'');},
  mgLoad(t){drawMGLoad(t);if(S.mg){box();txt(TOUCH?'TAP to dump the bucket when the bar over the truck is green.':'SPACE or ENTER to dump the bucket when the bar over the truck is green.',640,830,34,'#fff','center');}},
  mgGrade(t){drawMGGrade(t);if(S.mg){box();txt(TOUCH?'Hold and drag up or down to move the blade.':'Hold UP or DOWN to move the blade.',640,830,34,'#fff','center');}},
  title(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],fredisAway:0},t);
@@ -696,9 +812,11 @@ const KEY={
  gate(k){if(k==='Enter'||k===' ')askGate();},
  mgIntro(k){if(k==='Enter'||k===' '){S.mg.phase=S.mg.type==='pick'?'swing':'play';S.screen=MG_SCREEN[S.mg.type];}},
  mgBlast(k){if(k==='Enter'||k===' ')lockCharge();},
+ mgPhone(k){if(/^[1-3]$/.test(k))answerCall(+k-1);},
+ mgPump(k){if(k.length===1||k==='Enter'||k.startsWith('Arrow'))pumpStroke();},
  mgPaper(k){if(k==='ArrowLeft'||k==='a'||k==='shred')handleDoc('shred');else if(k==='ArrowRight'||k==='d'||k==='Enter'||k===' '||k==='submit')handleDoc('submit');},
  mgPick(k){if(k==='Enter'||k===' ')startLower();},
- mgMenu(k){const i=menuKey(k,6);if(i<0)return;const need=[['load',S.trucks>0,"No rock trucks to load. Lenny laughs for a long time."],['blast',true,''],['pick',S.crane>0,"No crane. Fredis looks at the girders, then at you, then at his truck."],['grade',S.graders>0,"No grader. Louie offers to 'eyeball it' with the dozer. Mel would notice."],['paper',true,'']];if(i===5){S.screen='menu';S.sel=0;return;}const [ty,ok,msg]=need[i];if(ok)startMG(ty);else{S.ret='menu';show({t:msg});}},
+ mgMenu(k){const i=menuKey(k,8);if(i<0)return;const need=[['load',S.trucks>0,"No rock trucks to load. Lenny laughs for a long time."],['blast',true,''],['pick',S.crane>0,"No crane. Fredis looks at the girders, then at you, then at his truck."],['grade',S.graders>0,"No grader. Louie offers to 'eyeball it' with the dozer. Mel would notice."],['paper',true,''],['phone',true,''],['pump',true,'']];if(i===7){S.screen='menu';S.sel=0;return;}const [ty,ok,msg]=need[i];if(ok)startMG(ty);else{S.ret='menu';show({t:msg});}},
  mgLoad(k){if(k==='Enter'||k===' ')dumpBucket();},
  mgGrade(k){},
  title(k){const i=menuKey(k,3);if(i===0){const nm=S.name;newGame();S.name=nm;S.screen='intro';S.page=0;}else if(i===1){S.screen='about';S.page=0;}else if(i===2){show({t:"There is no Top Ten. Andy deleted it after someone put Mel in the number one spot."});S.ret='title';}},
@@ -746,6 +864,8 @@ cv.addEventListener('pointerdown',e=>{e.preventDefault();try{cv.focus();}catch(_
  if(S.screen==='mgGrade'&&S.mg){S.mg.pointerDown=true;S.mg.target=p.y/8;return;}
  if(S.screen==='mgLoad'){dumpBucket();return;}
  if(S.screen==='mgBlast'){lockCharge();return;}
+ if(S.screen==='mgPump'){pumpStroke();return;}
+ if(S.screen==='mgPhone'){if(h)KEY.mgPhone(h.key);return;}
  if(S.screen==='mgPick'){startLower();return;}
  if(S.screen==='name'){const v=prompt('What is your name, boss?',S.name);if(v!==null)S.name=v.trim().slice(0,14)||'Boss';KEY.name('Enter');return;}
  if(S.screen==='store'){if(!h)return;if(h.key==='go'){S.sel=STORE.length;KEY.store('Enter');return;}const [act,i]=h.key.split(':');S.sel=+i;if(act==='plus')KEY.store('ArrowRight');else if(act==='minus')KEY.store('ArrowLeft');return;}

@@ -17,8 +17,10 @@ Keys: ENTER to continue, number keys or arrow keys to choose, LEFT/RIGHT to buy 
 - **Blast the Rock Cut**: eight drill holes; the powder charge rises and falls, tap to lock it in the green band. Light = toe for the hoe ram, heavy = flyrock onto the pickup. Then Tanya's horn and the shot.
 - **Set the Girders**: crane pick with Fredis on the abutment. The girder swings on the hook and keeps swinging while it lowers; tap to lower, land both ends on the green seats. Two in the creek and Fredis leaves for the airport.
 - **Harsh's ATP Package**: papers land on the desk; real cut sheets go right (submit to Mel), Harsh's nonsense goes left (shredder). Three pieces of nonsense reach Mel and the ATP is denied.
+- **Scott's Phone**: 100 calls waiting. Each call shows a question from Mel, Andy, the crew, the plant or a trucker; pick the answer a site super would give (tap or 1/2/3) before the bar runs out. Wrong ones get back to Andy. Sixty seconds.
+- **Adam's Dewatering**: tap to work the pump and keep the culvert trench below the yellow bed line while the labour crew places six sections. Rain bursts, and the pump loses prime if you stop for two seconds.
 
-All five trigger at set points on the job (after Clearing, mid rock cut, mid bridge, before the multiplate ATP, after the Multiplate), as random events, and from the site menu under Mini-games (each costs a week).
+All seven trigger at set points on the job (phone right after mobilization, excavator after Clearing, blasting mid rock cut, crane pick mid bridge, ATP package before the multiplate, grader after the Multiplate, culvert trench at 4+600), as random events, and from the site menu under Mini-games (each costs a week).
 
 ## Dev
 
