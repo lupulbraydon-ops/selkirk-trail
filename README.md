@@ -14,8 +14,11 @@ Keys: ENTER to continue, number keys or arrow keys to choose, LEFT/RIGHT to buy 
 
 - **Load the Rock Trucks**: excavator timing game. Tap or SPACE when the bucket is over the box (bar turns green). Six buckets per truck, 30 seconds, four spills and Tanya shuts it down. Each truck loaded adds a little progress.
 - **Cut the Grade**: the grader drives itself; you set the blade with UP/DOWN or by dragging. Shave to the yellow string line. 80%+ on grade earns progress and Mel's silence; under 55% is a re-grade week.
+- **Blast the Rock Cut**: eight drill holes; the powder charge rises and falls, tap to lock it in the green band. Light = toe for the hoe ram, heavy = flyrock onto the pickup. Then Tanya's horn and the shot.
+- **Set the Girders**: crane pick with Fredis on the abutment. The girder swings on the hook and keeps swinging while it lowers; tap to lower, land both ends on the green seats. Two in the creek and Fredis leaves for the airport.
+- **Harsh's ATP Package**: papers land on the desk; real cut sheets go right (submit to Mel), Harsh's nonsense goes left (shredder). Three pieces of nonsense reach Mel and the ATP is denied.
 
-Both trigger at milestones (after Clearing, after the Multiplate), as random events, and from the site menu any time (costs a week).
+All five trigger at set points on the job (after Clearing, mid rock cut, mid bridge, before the multiplate ATP, after the Multiplate), as random events, and from the site menu under Mini-games (each costs a week).
 
 ## Dev
 

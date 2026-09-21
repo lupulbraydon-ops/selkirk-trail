@@ -186,6 +186,9 @@ const EVENTS=[
  // ---- mini-games ----
  {w:4,t:"Lenny: 'The pit's backed up and the excavator operator went to Calgary with Fredis. Get in.'",cond:s=>s.trucks>0&&(s.km<3||s.km>=4),mg:'load'},
  {w:4,t:"Louie: 'Grader's fuelled. Mel's coming at two to check the grade. You're up.'",cond:s=>s.graders>0&&s.km>=4,mg:'grade'},
+ {w:3,t:"Lenny: 'Powder truck is here and the blaster called in sick. You have a ticket, right?' You do not have a ticket.",cond:s=>s.km>=1&&s.km<2,mg:'blast'},
+ {w:3,t:"Fredis is standing on the abutment. The girder is on the hook. He points at you, then at the crane. That is the whole briefing.",cond:s=>s.crane>0&&s.km>=2&&s.km<3&&fredisHere(),mg:'pick'},
+ {w:3,t:"Harsh: 'The ATP package is due at noon. I have... most of it.' It is 11:20.",mg:'paper'},
  // ---- Harsh ----
  {w:3,t:"Harsh submitted the QA package to the Ministry. It was 400 pages. Mel read all of it. It was 400 copies of the same page.",fx:{weeks:1,loss:90000}},
  {w:3,t:"Harsh's RFI response cites a spec clause that does not exist. Mel has asked for the clause. Harsh is now writing the clause.",fx:{weeks:1}},
@@ -214,7 +217,7 @@ const CFG={speed:0.14,evRate:0.42,illRate:0.07,burn:600000,lateKill:8};
 let S;
 function newGame(){S={screen:'title',week:1,km:0,loss:0,cash:0,fuel:0,coffee:0,vests:6,tracks:0,trucks:0,dozers:0,graders:0,crane:0,
  pace:0,ration:0,weather:'Clear',party:PARTY_DEF.map(p=>Object.assign({},p,{health:100,alive:true,cond:null,condWeeks:0,gone:''})),
- graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],fredisAway:0,fredisLeftAt:0,fredisRetAt:0};}
+ graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],fredisAway:0,fredisLeftAt:0,fredisRetAt:0,blasted:false,picked:false,papered:false};}
 newGame();if(!gateOpen())S.screen='gate';
 const alive=()=>S.party.filter(p=>p.alive);
 const fredisHere=()=>{const f=S.party.find(p=>p.name==='Fredis');return !!(f&&f.alive)&&S.fredisAway<=0;};
@@ -266,6 +269,9 @@ function tick(){
  const next=MILESTONES[S.msIndex];
  S.km=Math.min(S.km+speed,next.km);
  if(S.km>=next.km){reachMilestone(next);return;}
+ if(!S.blasted&&S.km>=1.4&&S.km<2){S.blasted=true;show({t:"Lenny: 'Holes are drilled. Powder truck's here. You're loading.'",then:()=>startMG('blast')});return;}
+ if(!S.papered&&S.km>=3.3&&S.km<4){S.papered=true;show({t:"Mel wants the ATP package for the multiplate by noon. Harsh has been 'compiling'. You have seen what Harsh compiles.",then:()=>startMG('paper')});return;}
+ if(!S.picked&&S.km>=2.4&&S.km<3&&S.crane>0){S.picked=true;show({t:fredisHere()?"Fredis walked out to the abutment, pointed at the girders, pointed at the crane, and crossed his arms.":"Fredis is in Calgary. The girders are here. Scott says 'you've seen him do it', which is not the same as knowing how.",then:()=>startMG('pick')});return;}
  if(S.fuel<=0&&hadFuel){applyFx({weeks:1,loss:45000,fuel:20000});show({t:"You are out of diesel. Louie siphons the pickup. A fuel truck from Golden brings 20,000 L a week later. $45,000, plus a tip."});return;}
  if(S.coffee<=0&&Math.random()<0.25){show({t:rnd(["The crew is out of coffee. Adam has stopped blinking.","No coffee. Scott is drinking hydraulic fluid 'as a joke'. It is not a joke.","Coffee gone. Lenny has started a fire just to feel something."])});return;}
  const r=Math.random();
@@ -383,6 +389,9 @@ let DT=0,lastMs=0;const KEYS=new Set();
 const MG_LOAD_TIME=30;
 function startMG(type){S.moving=false;S.mg={type,phase:'intro',pointerDown:false,target:null};
  if(type==='load'){Object.assign(S.mg,{s:0,dir:1,omega:0.55,full:true,loads:0,trucks:0,spills:0,timeLeft:MG_LOAD_TIME,rocks:[],truckX:72,leaving:0,arriving:0,flash:0,flashTxt:''});}
+ else if(type==='blast'){const band=[];for(let i=0;i<8;i++){const c=18+Math.round(Math.random()*10);band.push([c-4,c+4]);}Object.assign(S.mg,{i:0,ch:0,dir:1,speed:26,charges:[],kind:[],band,parts:[],flash:0,flashTxt:'',t:0});}
+ else if(type==='paper'){Object.assign(S.mg,{real:0,bs:0,shred:0,shredReal:0,timeLeft:30,doc:null,docLife:3.2,fly:0,flyDir:1,flash:0,flashTxt:''});}
+ else if(type==='pick'){Object.assign(S.mg,{sets:0,misses:0,errs:[],cx:80,flash:0,flashTxt:'',t:0,lastErr:0});newGirder(S.mg);S.mg.phase='intro';}
  else{const design=[],ground=[];for(let x=0;x<160;x++){const d=62+Math.round(5*Math.sin(x/23)+2*Math.sin(x/7));design.push(d);let b=Math.round(Math.random()*7);if(Math.random()<0.1)b=-2;ground.push(d-b);}
   Object.assign(S.mg,{design,ground,gx:-30,by:design[0]-5,dust:[],cutCols:0});}
  S.screen='mgIntro';}
@@ -466,7 +475,140 @@ function endGrade(good,high,low){const pct=Math.round(good/160*100);let text,fx=
  else if(pct>=55){text=`${pct}% on grade. ${high} high spots, ${low} overcuts. Mel writes "acceptable" with a question mark. Louie fixes the rest with the small dozer and does not mention it.`;fx={health:1};bonus=0.06;}
  else{text=`${pct}% on grade. Mel's tape came out. Then his phone. Then Andy's phone. Re-grade: one week, and Louie is telling everyone he could have done it blindfolded.`;fx={weeks:1,loss:60000,health:-3};}
  mgFinish(text,fx,bonus);}
-const MG_INTRO={load:"LOAD THE ROCK TRUCKS.  Lenny: 'The pit's backed up. Get in the excavator.'\nThe bucket swings from the pile to the truck. TAP (or SPACE) to dump when the bucket is over the box, when the bar turns green. Six buckets fills a truck. Spill four and Tanya shuts you down. Thirty seconds.",
+// ---- Blast the rock cut ----
+function lockCharge(){const m=S.mg;if(!m||m.phase!=='play'||m.i>=8)return;m.charges[m.i]=m.ch;const [lo,hi]=m.band[m.i];m.kind[m.i]=m.ch<lo?'under':m.ch>hi?'over':'good';
+ m.flash=0.6;m.flashTxt=m.kind[m.i]==='good'?'GOOD':m.kind[m.i]==='under'?'LIGHT':'HEAVY!';m.i++;m.ch=0;m.dir=1;m.speed*=1.12;
+ if(m.i>=8){m.phase='count';m.t=0;}}
+function drawMGBlast(t){const m=S.mg;PX=8;try{
+ if(m.phase==='play'){m.ch+=m.dir*m.speed*DT;if(m.ch>=40){m.ch=40;m.dir=-1;}if(m.ch<=0){m.ch=0;m.dir=1;}}
+ if(m.phase==='count'){m.t+=DT;if(m.t>1.6){m.phase='blast';m.t=0;
+   for(let i=0;i<8;i++){const hx=70+i*11;const k=m.kind[i];const n=k==='over'?26:k==='good'?12:3;
+    for(let j=0;j<n;j++){const over=k==='over';m.parts.push({x:hx-4+Math.random()*9,y:40+Math.random()*40,vx:over?-(40+Math.random()*50):-(6+Math.random()*12),vy:over?-(30+Math.random()*30):-(10+Math.random()*15),c:j%3?C.grey:C.grey2,s:over?2:1});}}}}
+ if(m.phase==='blast'){m.t+=DT;for(const p of m.parts){p.vy+=70*DT;p.x+=p.vx*DT;p.y+=p.vy*DT;if(p.y>84){p.y=84;p.vy=0;p.vx*=0.3;}}if(m.t>2.6)m.phase='over';}
+ if(m.flash>0)m.flash-=DT;
+ // scene
+ P(0,0,160,93,'#4f95e0');for(let x=0;x<160;x++){const h=10+7*Math.sin(x/19+2)+3*Math.sin(x/6);P(x,42-h,1,h,'#5372c9');P(x,42-h,1,2,'#eef2ff');}
+ P(0,85,160,8,C.dirt);for(let x=0;x<160;x+=5)P(x+(x%3),87+(x%4),2,1,C.dirt3);
+ // rock face with per-hole segments
+ const blasted=m.phase==='blast'||m.phase==='over';
+ P(64,28,96,57,C.grey2);for(let y=30;y<85;y+=6)for(let x=(y%12?66:70);x<158;x+=9)P(x,y,6,3,C.grey);P(64,28,96,2,C.grey3);
+ for(let i=0;i<8;i++){const hx=70+i*11;const k=m.kind[i];
+  if(blasted&&k&&k!=='under'){for(let x=hx-5;x<hx+6;x++){P(x,28,1,30,'#4f95e0');const h=10+7*Math.sin(x/19+2)+3*Math.sin(x/6);if(42-h<58){P(x,42-h,1,Math.min(h,58-(42-h)),'#5372c9');P(x,42-h,1,2,'#eef2ff');}}
+   P(hx-5,58,11,27,'#7d7d7d');P(hx-5,58,11,1,C.grey3);for(let j=0;j<4;j++)P(hx-4+((j*5)%9),61+((j*7)%16),3,2,C.grey2);
+   const ph=k==='over'?9:14;P(hx-5,85-ph,11,ph,C.grey2);for(let j=0;j<7;j++)P(hx-5+((j*4)%10),85-ph+1+((j*5)%(ph-2)),2,2,j%2?C.grey:C.grey3);}
+  else{P(hx,30,1,52,'#222');const [lo,hi]=m.band[i];P(hx+2,82-hi,1,hi-lo,'#00ff66');
+   const ch=i<m.i?m.charges[i]:(i===m.i&&m.phase==='play'?m.ch:0);if(ch>0)P(hx-1,82-ch,3,ch,k==='over'?'#ff4040':C.orange);
+   if(blasted&&k==='under'){P(hx-3,60,1,22,'#111');P(hx+2,50,1,32,'#111');P(hx-5,84-5,11,5,C.grey2);}
+   if(i===m.i&&m.phase==='play'){P(hx-2,22,5,2,C.yellow);P(hx-1,24,3,2,C.yellow);P(hx,26,1,1,C.yellow);}}}
+ // road side: pickup + porta-potty, with damage after flyrock
+ const over=m.kind.filter(k=>k==='over').length;
+ if(blasted&&over>0&&m.t>1.2){P(2,75,18,10,C.blue);P(4,77,12,4,C.blue3);P(0,74,2,12,C.blue2);pickup(24,85,C.white,t,false);for(let j=0;j<over*3;j++)P(26+((j*7)%30),85-16+((j*5)%6),2,2,C.grey);}
+ else{pickup(24,85,C.white,t,false);porta(8,85);}
+ for(const p of m.parts)P(p.x,p.y,p.s,p.s,p.c);
+ }finally{PX=4;}
+ ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
+ const good=m.kind.filter(k=>k==='good').length,under=m.kind.filter(k=>k==='under').length,ov=m.kind.filter(k=>k==='over').length;
+ txt(`HOLE ${Math.min(m.i+1,8)}/8   GOOD ${good}   LIGHT ${under}   HEAVY ${ov}`,16,8,30,'#fff');
+ if(m.phase==='play')txt(TOUCH?'Tap to lock the powder charge inside the green band.':'SPACE to lock the powder charge inside the green band.',16,40,26,'#ffd400');
+ if(m.phase==='count')txt('FIRE IN THE HOLE',640,300,110,'#ff4040','center');
+ if(m.flash>0&&m.phase==='play')txt(m.flashTxt,640,300,90,m.flashTxt==='GOOD'?'#00ff66':m.flashTxt==='LIGHT'?'#ffd400':'#ff4040','center');
+ if(m.phase==='count'&&m.t>0.8)txt("Tanya: 'Horn.'  Lenny: 'That was the horn.'",640,440,34,'#fff','center');ctx.restore();
+ if(m.phase==='over')endBlast(good,under,ov);}
+function endBlast(g,u,o){let text,fx={},bonus=0;
+ if(o>=3){text=`Flyrock. ${o} holes overcharged. Rocks landed on the pickup, the porta-potty, and briefly on Mel's clipboard. Tanya has stopped the job. WorkSafe is 'aware'.`;fx={weeks:2,loss:300000,health:-5};}
+ else if(g>=6&&o===0){text=`Clean shot. ${g} of 8 holes broke to grade${u?', '+u+' with a bit of toe':''}. Lenny says the muckpile is 'pretty'. Louie is already in the excavator.`;fx={health:3,loss:u*15000};bonus=0.15;}
+ else{text=`${g} good, ${u} light, ${o} heavy. The hoe ram will be on the toe for ${u*2} days.${o?' The pickup has '+o+' new dent'+(o>1?'s':'')+'. Tanya has '+o+' new photo'+(o>1?'s':'')+'.':''}`;fx={loss:u*15000+o*40000,weeks:u>=3?1:0,health:o?-2:0};bonus=g>=4?0.08:0.03;}
+ mgFinish(text,fx,bonus);}
+// ---- Set the girders (crane pick, Fredis watching) ----
+function startLower(){const m=S.mg;if(!m||m.phase!=='swing')return;m.phase='lower';}
+function newGirder(m){m.gy=20;m.A=16+m.sets*5+m.misses*3;m.w=1.2+m.sets*0.3;m.ph=Math.random()*6;m.gust=2+Math.random()*2;}
+function drawMGPick(t){const m=S.mg;PX=8;try{
+ if(m.phase==='swing'||m.phase==='lower'){m.ph+=m.w*DT;m.gust-=DT;if(m.gust<=0){m.A=Math.min(30,m.A+3+Math.random()*6);m.gust=2+Math.random()*3;m.flash=0.5;m.flashTxt='GUST';}
+  if(m.phase==='swing')m.A=Math.max(6,m.A-1.2*DT);else{m.A*=Math.max(0,1-0.45*DT);m.gy+=15*DT;
+   if(m.gy>=53){m.gy=53;const err=m.cx-80;m.lastErr=err;
+    if(Math.abs(err)<=3){m.sets++;m.flash=0.9;m.flashTxt='SET';m.phase='rest';m.t=0;m.errs.push(Math.abs(err));}
+    else if(Math.abs(err)<=7){m.sets++;m.flash=0.9;m.flashTxt='CLOSE. FREDIS HAS A BAR.';m.phase='rest';m.t=0;m.errs.push(Math.abs(err));}
+    else{m.misses++;m.flash=1.2;m.flashTxt='MISS';m.phase='drop';m.t=0;}}}}
+ m.cx=80+m.A*Math.sin(m.ph);
+ if(m.phase==='rest'){m.t+=DT;if(m.t>1){if(m.sets>=3)m.phase='over';else{newGirder(m);m.phase='swing';}}}
+ if(m.phase==='drop'){m.t+=DT;m.gy+=22*DT;if(m.t>1.3){if(m.misses>=2)m.phase='over';else{newGirder(m);m.phase='swing';}}}
+ if(m.flash>0)m.flash-=DT;
+ // scene
+ P(0,0,160,93,'#4f95e0');for(let x=0;x<160;x++){const h=10+7*Math.sin(x/21)+3*Math.sin(x/6+1);P(x,46-h,1,h,'#5372c9');P(x,46-h,1,2,'#eef2ff');}
+ P(0,46,160,6,C.grass);for(let x=0;x<160;x+=9)tree(x+(x%4),38+(x%2));
+ P(0,58,160,35,C.dirt);for(let x=0;x<160;x+=5)P(x+(x%3),62+(x*7%29),2,1,C.dirt3);
+ for(let y=58;y<78;y++){const w=22+(y-58)*0.9;P(80-w,y,2*w,1,y>=73?C.water:C.dirt2);P(80-w,y,2,1,C.dirt4);P(80+w-2,y,2,1,C.dirt4);}
+ for(let i=0;i<12;i++)P(60+((i*7+Math.floor(t*6))%40),73+(i%3),2,1,C.water2);
+ P(36,58,20,20,C.grey);P(36,58,2,20,C.grey3);P(104,58,20,20,C.grey);P(122,58,2,20,C.grey2);P(36,58,20,1,C.grey3);P(104,58,20,1,C.grey3);
+ P(46,57,8,1,'#00ff66');P(106,57,8,1,'#00ff66');   // bearing seats
+ if(m.sets>0){P(48,53,64,5,C.girder);P(48,53,64,1,C.girder2);P(48,57,64,1,C.girder3);for(let k=1;k<m.sets;k++)P(48,54+k,64,1,C.girder3);}
+ // crane boom from off-screen left + cable
+ L(-12,70,78,-4,C.yellow,2.2);L(-12,66,76,-6,C.yellow,1);for(let i=0;i<10;i++){const f=i/10;L(-12+f*90,70-f*74,-12+f*90,66-f*72,C.yellow2,0.5);}
+ const gy=m.gy,cx=m.cx;L(78,-2,cx,gy-8,'#eee',0.5);P(cx-3,gy-8,6,3,C.yellow);L(cx,gy-5,cx-28,gy,'#eee',0.4);L(cx,gy-5,cx+28,gy,'#eee',0.4);
+ if(m.phase==='drop'){const tl=Math.min(1,m.t)*6;P(cx-32,gy-tl,32,5,C.girder);P(cx,gy+tl,32,5,C.girder);}
+ else{P(cx-32,gy,64,5,C.girder);P(cx-32,gy,64,1,C.girder2);P(cx-32,gy+4,64,1,C.girder3);}
+ if(m.phase==='swing'||m.phase==='lower'){const ok=Math.abs(cx-80)<=3;P(77,60,7,1,ok?'#00ff66':'#ffd400');}
+ // Fredis on the right abutment, arms crossed, judging
+ person(126,58,{hat:'#fff',shirt:'#b3001b',angry:true});
+ if(m.flashTxt==='MISS'&&m.flash>0)P(124,44,10,1,'#ff4040');
+ }finally{PX=4;}
+ ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
+ txt(`GIRDERS SET ${m.sets}/3   IN THE CREEK ${m.misses}/2   SWING ${Math.round(m.A)}`,16,8,30,'#fff');
+ txt(TOUCH?'Tap to lower the hook. Land both ends on the green seats.':'SPACE to lower the hook. Land both ends on the green seats.',16,40,26,'#ffd400');
+ if(m.flash>0)txt(m.flashTxt,640,300,m.flashTxt.length>6?60:90,m.flashTxt==='SET'?'#00ff66':m.flashTxt==='MISS'?'#ff4040':'#ffd400','center');ctx.restore();
+ if(m.phase==='over')endPick();}
+function endPick(){const m=S.mg;const avg=m.errs.length?m.errs.reduce((a,b)=>a+b,0)/m.errs.length:99;let text,fx={},bonus=0;
+ if(m.misses>=2){text="Two girders in the creek. The creek is ankle deep, so the girders are fine. Fredis is not. He did not drive to Calgary. He drove to the airport. Tanya has shut down the lift.";fx={weeks:2,loss:250000,health:-4};fredisLeaves(3);}
+ else if(m.misses===1){text="One girder in the creek, two on the seats. Fredis looked at the creek for a long time, got in his truck, and drove to Calgary without a word. The bars are still where he left them.";fx={weeks:1,loss:90000,health:-2};bonus=0.06;fredisLeaves(2);}
+ else if(avg<=2){text="Three girders, three seats, no bar needed. Fredis looked at the bearing pads, looked at you, and nodded once. Scott says it is the most Fredis has ever said to anyone.";fx={health:5};bonus=0.15;}
+ else{text="Three girders set. Fredis fixed two of them with a bar and said nothing, which is the good kind of nothing. Mel measured them anyway.";fx={health:2};bonus=0.1;}
+ mgFinish(text,fx,bonus);}
+// ---- Harsh's ATP package (submit the cut sheets, shred the nonsense) ----
+const PAPER_REAL=["CUT SHEET   Sta 1+240 to 1+320   CL cut 0.85 m","CUT SHEET   Sta 2+060   Ditch invert 812.40","CUT SHEET   Sta 3+100 to 3+180   Fill 1.20 m","CUT SHEET   Sta 4+420   Subgrade 809.15","CUT SHEET   Sta 0+980   Rock cut 3.40 m","CUT SHEET   Sta 5+200 to 5+260   Crossfall 2%","CUT SHEET   Sta 2+700   Abutment seat 815.02","CUT SHEET   Sta 1+860   Culvert invert 811.70","CUT SHEET   Sta 3+640   Multiplate invert 810.05","CUT SHEET   Sta 5+900   Top of asphalt 808.60"];
+const PAPER_BS=["MENU   Golden Dragon   #14 Ginger Beef","TRAFFIC PLAN   Surrey, 2021   (no avalanche gates)","CONCRETE TESTS   Cylinder IDs from 2019","POSTCARD   from Calgary   (blank)","DAILY REPORT   'Bridge complete'   (it is not)","QA PACKAGE   400 copies of page 1","RECEIPT   Denny's, Revelstoke   $47.10","SPEC CLAUSE 7.9.4   (does not exist)","LINKEDIN DRAFT   'Humbled to announce'","TIM HORTONS ORDER   14 double-doubles","WCB FORM   'bad back'   (Louie, again)","QUANTITY SHEET   30,000 m3 rock   (it was 12,000)"];
+function newDoc(m){const real=Math.random()<0.55;m.doc={real,text:real?rnd(PAPER_REAL):rnd(PAPER_BS),x:-70,life:m.docLife};}
+function handleDoc(action){const m=S.mg;if(!m||m.phase!=='play'||!m.doc||m.doc.x<0)return;const d=m.doc;
+ if(action==='submit'){if(d.real){m.real++;m.flash=0.5;m.flashTxt='SUBMITTED';}else{m.bs++;m.flash=0.8;m.flashTxt='MEL WILL SEE THAT';}}
+ else{if(d.real){m.shredReal++;m.flash=0.6;m.flashTxt="THAT WAS LENNY'S";}else{m.shred++;m.flash=0.4;m.flashTxt='SHREDDED';}}
+ m.flyDir=action==='submit'?1:-1;m.fly=0.35;m.flyText=d.text;m.doc=null;m.docLife=Math.max(1.2,m.docLife*0.94);
+ if(m.bs>=3){m.phase='over';}}
+function drawMGPaper(t){const m=S.mg;PX=8;try{
+ if(m.phase==='play'){m.timeLeft-=DT;if(m.timeLeft<=0){m.timeLeft=0;m.phase='over';}
+  if(m.fly>0)m.fly-=DT;
+  if(!m.doc&&m.fly<=0)newDoc(m);
+  if(m.doc){if(m.doc.x<0)m.doc.x=Math.min(0,m.doc.x+320*DT);else{m.doc.life-=DT;if(m.doc.life<=0){if(m.doc.real)m.shredReal++;m.flash=0.6;m.flashTxt='FAN GOT IT';m.doc=null;}}}
+  if(m.flash>0)m.flash-=DT;}
+ // trailer interior
+ P(0,0,160,93,'#3b3f47');for(let y=0;y<60;y+=4)P(0,y,160,1,'#464a53');
+ P(0,60,160,33,'#5a4632');for(let x=0;x<160;x+=8)P(x,60,1,33,'#4a3826');
+ P(4,8,50,30,'#9fd8ff');P(6,10,46,26,'#5aa0e6');for(let x=0;x<160;x++){const h=6+5*Math.sin(x/9);if(x>=6&&x<52)P(x,36-h,1,h,'#3d5aa8');}P(4,8,50,1,'#ddd');P(4,37,50,1,'#ddd');P(28,8,1,30,'#ddd');
+ P(60,10,96,3,'#2b2e34');P(62,12,20,14,'#d9d2c0');P(84,12,20,14,'#d9d2c0');P(106,12,20,14,'#d9d2c0');P(128,12,20,14,'#d9d2c0');txt('BINDERS',(62+5)*PX,(14)*PX,22,'#333');
+ P(0,58,160,4,'#7a5a3a');P(0,62,160,2,'#3a2a18');   // desk edge
+ P(140,30,16,26,'#2b2e34');P(142,32,12,20,'#9fd8ff');P(144,34,8,2,'#ffd400');P(144,38,8,1,'#fff');P(144,41,6,1,'#fff');P(144,44,8,1,'#fff');  // monitor
+ P(8,40,3,18,'#333');P(4,54,11,4,'#222');P(2,52,15,2,'#444');txt('SHRED',6*PX,45*PX,20,'#f44');  // shredder
+ P(120,50,30,8,'#8a6a40');P(122,52,26,4,'#e8e0cc');txt('OUT (TO MEL)',121*PX,44*PX,18,'#fff');   // out tray
+ for(let i=0;i<6;i++)P(16+i,54-i,26,1,'#e8e0cc');P(16,54,26,4,'#d8d0bc');   // in stack
+ person(60,58,{hat:'#fff',shirt:'#6a3fbf',clip:true});P(61,45,4,1,'#000');   // Harsh at the desk
+ // the document on the desk
+ if(m.doc){const dx=52+m.doc.x;P(dx,28,56,30,'#f4f1ea');P(dx,28,56,1,'#fff');P(dx+55,28,1,30,'#bbb');P(dx,57,56,1,'#bbb');for(let i=0;i<5;i++)P(dx+4,36+i*4,48-(i*7%20),1,'#c9c4b8');
+  const frac=m.doc.life/m.docLife;P(dx+4,31,48,2,'#ddd');P(dx+4,31,48*frac,2,frac>0.4?'#00cc55':'#ff4040');}
+ if(m.fly>0){const f=1-m.fly/0.35;const dx=52+m.flyDir*f*70,dy=28-f*10;ctx.globalAlpha=1-f;P(dx,dy,56,30,'#f4f1ea');ctx.globalAlpha=1;}
+ }finally{PX=4;}
+ ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
+ txt(`SUBMITTED ${m.real}   NONSENSE SENT ${m.bs}/3   SHREDDED LENNY'S ${m.shredReal}   ATP DEADLINE ${Math.ceil(m.timeLeft)}s`,16,8,30,'#fff');
+ if(m.doc&&m.doc.x>=0){txt(m.doc.text,640,296,34,'#222','center');}
+ if(m.flash>0)txt(m.flashTxt,640,420,70,m.flashTxt==='SUBMITTED'||m.flashTxt==='SHREDDED'?'#00ff66':'#ff4040','center');ctx.restore();
+ if(m.phase==='over')endPaper();}
+function endPaper(){const m=S.mg;let text,fx={},bonus=0;
+ if(m.bs>=3){text="ATP denied. Mel found the Golden Dragon menu, the Surrey traffic plan and a blank postcard in the package. Harsh says it was 'a test'. Two weeks, and Mel now opens every binder.";fx={weeks:2,loss:150000,health:-3};}
+ else if(m.real>=12&&m.bs===0){text=`${m.real} cut sheets in before the ATP deadline and nothing weird in the package. Mel signed without a comment. Harsh has already put it on LinkedIn.`;fx={health:3};bonus=0.12;}
+ else{text=`${m.real} sheets submitted, ${m.bs} piece${m.bs===1?'':'s'} of nonsense slipped through, ${m.shredReal} of Lenny's real ones shredded. Mel signed the ATP 'with conditions'. Lenny's crew waited ${m.shredReal*2} hours for elevations.`;fx={loss:m.bs*30000+m.shredReal*8000,health:m.bs?-1:1};bonus=m.real>=8?0.06:0.02;}
+ mgFinish(text,fx,bonus);}
+const MG_SCREEN={load:'mgLoad',grade:'mgGrade',blast:'mgBlast',pick:'mgPick',paper:'mgPaper'};const MG_DRAW={load:drawMGLoad,grade:drawMGGrade,blast:drawMGBlast,pick:drawMGPick,paper:drawMGPaper};
+const MG_INTRO={paper:"HARSH'S ATP PACKAGE.  Harsh: 'The ATP package is due at noon. I have... most of it.' It is 11:20.\nPapers land on the desk one at a time. Real cut sheets go OUT to Mel (tap the right side, or RIGHT arrow). Harsh's nonsense goes in the SHREDDER (tap the left side, or LEFT arrow). Three pieces of nonsense reach Mel and the ATP is denied. Thirty seconds.",
+ blast:"BLAST THE ROCK CUT.  Lenny: 'Holes are drilled. Powder truck's here. You're loading.'\nThe charge in each hole rises and falls. TAP (or SPACE) to lock it inside the green band. Too light leaves toe for the hoe ram. Too heavy is flyrock, and the pickup is parked right there. Eight holes, then Tanya blows the horn.",
+ pick:"SET THE GIRDERS.  Fredis is on the abutment. He has not spoken. He will not speak.\nThe girder swings on the hook. TAP (or SPACE) to lower it, and it keeps swinging on the way down. Land both ends on the green seats. Three girders. Two in the creek and Fredis leaves for the airport.",
+ load:"LOAD THE ROCK TRUCKS.  Lenny: 'The pit's backed up. Get in the excavator.'\nThe bucket swings from the pile to the truck. TAP (or SPACE) to dump when the bucket is over the box, when the bar turns green. Six buckets fills a truck. Spill four and Tanya shuts you down. Thirty seconds.",
  grade:"CUT THE GRADE.  Lenny: 'Grade's yours. Don't embarrass me in front of Mel.'\nThe grader drives itself. You control the blade: drag up and down on the screen (or UP/DOWN keys). Shave the ground down to the yellow string line. High spots are red, overcuts are orange, and Mel counts both."};
 
 // ---------------- UI helpers ----------------
@@ -488,7 +630,11 @@ const DRAW={
  gate(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],fredisAway:0},t);
   ctx.save();txt('SELKIRK TRAIL',646,126,150,'#000','center');txt('SELKIRK TRAIL',640,120,150,'#ffd400','center');ctx.restore();
   box();txt('This site is for the Selkirk crew only.',640,785,36,'#fff','center');txt(S.gateMsg||'Ask whoever sent you the link for the access code.',640,835,30,'#ffd400','center');txt(TOUCH?'Tap to enter the code.':'Press ENTER to enter the code.',640,905,30,'#bdbdbd','center');},
- mgIntro(t){const m=S.mg;(m.type==='load'?drawMGLoad:drawMGGrade)(t);boxText(MG_INTRO[m.type],TOUCH?'Tap to start.':'Press ENTER to start.');},
+ mgIntro(t){const m=S.mg;MG_DRAW[m.type](t);boxText(MG_INTRO[m.type],TOUCH?'Tap to start.':'Press ENTER to start.');},
+ mgPaper(t){drawMGPaper(t);if(S.mg){box();ctx.strokeStyle='#ff6060';ctx.lineWidth=4;ctx.strokeRect(80,790,500,110);ctx.strokeStyle='#60ff90';ctx.strokeRect(700,790,500,110);txt('SHRED',330,812,60,'#ff6060','center');txt('SUBMIT TO MEL',950,812,60,'#60ff90','center');txt(TOUCH?'tap the left side':'LEFT arrow',330,872,22,'#bdbdbd','center');txt(TOUCH?'tap the right side':'RIGHT arrow or ENTER',950,872,22,'#bdbdbd','center');HIT.push({x0:0,x1:640,y0:0,y1:960,key:'shred'});HIT.push({x0:640,x1:1280,y0:0,y1:960,key:'submit'});}},
+ mgBlast(t){drawMGBlast(t);if(S.mg){box();txt(S.mg.phase==='play'?(TOUCH?'TAP to lock the charge when it is in the green band.':'SPACE to lock the charge when it is in the green band.'):'Stand back.',640,830,34,'#fff','center');}},
+ mgPick(t){drawMGPick(t);if(S.mg){box();txt(TOUCH?'TAP to lower. Both ends on the green seats. Fredis is watching.':'SPACE to lower. Both ends on the green seats. Fredis is watching.',640,830,34,'#fff','center');}},
+ mgMenu(t){drawScene(viewFromState(),t);hud();boxMenu('Mini-games. Each one is a week of real work.',['Load the rock trucks (excavator)','Blast the rock cut (powder)','Set the girders (crane, Fredis)','Cut the grade (grader)',"Harsh's ATP package (paperwork)",'Back'],S.sel,'');},
  mgLoad(t){drawMGLoad(t);if(S.mg){box();txt(TOUCH?'TAP to dump the bucket when the bar over the truck is green.':'SPACE or ENTER to dump the bucket when the bar over the truck is green.',640,830,34,'#fff','center');}},
  mgGrade(t){drawMGGrade(t);if(S.mg){box();txt(TOUCH?'Hold and drag up or down to move the blade.':'Hold UP or DOWN to move the blade.',640,830,34,'#fff','center');}},
  title(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],fredisAway:0},t);
@@ -514,7 +660,7 @@ const DRAW={
   box();txt(S.storeMsg||'Everything is on EllisDon\'s account. Andy will see the invoice.',640,830,32,'#fff','center');},
  travel(t){drawScene(viewFromState(),t);hud();box();
   txt(S.moving?'Travelling the Selkirk Trail...':'Paused.',640,790,36,'#fff','center');txt(`Pace: ${PACES[S.pace]}   Coffee: ${RATIONS[S.ration]}`,640,840,28,'#bdbdbd','center');txt(TOUCH?'Tap for the site menu.':'Press ENTER for the site menu.',640,900,30,'#bdbdbd','center');},
- menu(t){drawScene(viewFromState(),t);hud();boxMenu('',['Continue on the trail','Check crew and supplies',`Change pace (${PACES[S.pace]})`,`Change coffee rations (${RATIONS[S.ration]})`,'Rest for a week','Call Andy','Talk to Tanya','Talk to Fredis','Load rock trucks (mini-game, 1 week)','Run the grader (mini-game, 1 week)'],S.sel,'');},
+ menu(t){drawScene(viewFromState(),t);hud();boxMenu('',['Continue on the trail','Check crew and supplies',`Change pace (${PACES[S.pace]})`,`Change coffee rations (${RATIONS[S.ration]})`,'Rest for a week','Call Andy','Talk to Tanya','Talk to Fredis','Mini-games (a week of work each)'],S.sel,'');},
  pace(t){drawScene(viewFromState(),t);hud();boxMenu('Set the pace:',PACES.map((p,i)=>p+['  -  slow, safe, Mel approves','  -  faster, crew tires, burn rate up','  -  fastest, crew breaks, Andy loves it'][i]),S.sel,'');},
  ration(t){drawScene(viewFromState(),t);hud();boxMenu('Set the coffee rations:',RATIONS.map((p,i)=>p+['  -  14 cups/week each, crew thrives','  -  7 cups/week each','  -  3 cups/week each, morale dies'][i]),S.sel,'');},
  status(t){drawScene(viewFromState(),t);ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(60,30,1160,690);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(60,30,1160,690);
@@ -548,7 +694,11 @@ function score(){const a=alive().length;let pts=a*500+Math.max(0,45000000-S.loss
 
 const KEY={
  gate(k){if(k==='Enter'||k===' ')askGate();},
- mgIntro(k){if(k==='Enter'||k===' '){S.mg.phase='play';S.screen=S.mg.type==='load'?'mgLoad':'mgGrade';}},
+ mgIntro(k){if(k==='Enter'||k===' '){S.mg.phase=S.mg.type==='pick'?'swing':'play';S.screen=MG_SCREEN[S.mg.type];}},
+ mgBlast(k){if(k==='Enter'||k===' ')lockCharge();},
+ mgPaper(k){if(k==='ArrowLeft'||k==='a'||k==='shred')handleDoc('shred');else if(k==='ArrowRight'||k==='d'||k==='Enter'||k===' '||k==='submit')handleDoc('submit');},
+ mgPick(k){if(k==='Enter'||k===' ')startLower();},
+ mgMenu(k){const i=menuKey(k,6);if(i<0)return;const need=[['load',S.trucks>0,"No rock trucks to load. Lenny laughs for a long time."],['blast',true,''],['pick',S.crane>0,"No crane. Fredis looks at the girders, then at you, then at his truck."],['grade',S.graders>0,"No grader. Louie offers to 'eyeball it' with the dozer. Mel would notice."],['paper',true,'']];if(i===5){S.screen='menu';S.sel=0;return;}const [ty,ok,msg]=need[i];if(ok)startMG(ty);else{S.ret='menu';show({t:msg});}},
  mgLoad(k){if(k==='Enter'||k===' ')dumpBucket();},
  mgGrade(k){},
  title(k){const i=menuKey(k,3);if(i===0){const nm=S.name;newGame();S.name=nm;S.screen='intro';S.page=0;}else if(i===1){S.screen='about';S.page=0;}else if(i===2){show({t:"There is no Top Ten. Andy deleted it after someone put Mel in the number one spot."});S.ret='title';}},
@@ -565,7 +715,7 @@ const KEY={
    if(S.dozers===0)show({t:"Lenny: 'No dozer? We're clearing six kilometres of mountain with a pickup and vibes?' Progress will be slow."});}
   else if(k==='Enter'){const it=STORE[S.sel];if(S.cash>=it.price&&!(it.max&&S[it.key]>=it.max)){S.cash-=it.price;S[it.key]+=it.step;S.storeMsg=`Bought ${it.name}.`;}}},
  travel(k){if(k==='Enter'||k===' '||k==='Escape'){S.moving=false;S.screen='menu';S.sel=0;}},
- menu(k){const i=menuKey(k,10);if(i===8){if(S.trucks>0)startMG('load');else{S.ret='menu';show({t:"No rock trucks to load. Lenny laughs for a long time."});}return;}if(i===9){if(S.graders>0)startMG('grade');else{S.ret='menu';show({t:"No grader. Louie offers to 'eyeball it' with the dozer. Mel would notice."});}return;}if(i===0){S.screen='travel';S.moving=true;}else if(i===1)S.screen='status';else if(i===2){S.screen='pace';S.sel=S.pace;}else if(i===3){S.screen='ration';S.sel=S.ration;}
+ menu(k){const i=menuKey(k,9);if(i===8){S.screen='mgMenu';S.sel=0;return;}if(i===0){S.screen='travel';S.moving=true;}else if(i===1)S.screen='status';else if(i===2){S.screen='pace';S.sel=S.pace;}else if(i===3){S.screen='ration';S.sel=S.ration;}
   else if(i===7){S.ret='menu';if(!fredisAlive())show({t:"Fredis is gone. His hard hat is still on the hook. Nobody will touch it."});else if(!fredisHere())show({t:"Fredis is in Calgary. Nobody knows why. Nobody will ask."});else show({t:rnd(FREDIS_TALK)});}
   else if(i===4){S.week++;S.loss+=burn();for(const p of alive()){p.health=Math.min(100,p.health+15);p.cond=null;}S.ret='menu';show({t:rnd(["The crew rests for a week. Andy notices. Andy always notices.","A week off. Louie goes fishing. Scott goes to Calgary. Lenny reads the spec. Nobody knows why.","Rest week. Tanya holds an optional safety meeting. Attendance is mandatory."])});}
   else if(i===5){for(const p of alive())p.health=Math.max(1,p.health-2);S.ret='menu';show({t:rnd(ANDY_CALLS)});}
@@ -588,13 +738,15 @@ let last=0;
 function frame(ms){const t=ms/1000;DT=Math.min(0.05,Math.max(0,(ms-lastMs)/1000));lastMs=ms;if(S.screen==='travel'&&S.moving&&ms-S.lastTick>850){S.lastTick=ms;tick();}
  ctx.imageSmoothingEnabled=false;HIT=[];(DRAW[S.screen]||DRAW.title)(t);requestAnimationFrame(frame);}
 document.addEventListener('keyup',e=>KEYS.delete(e.key));
-document.addEventListener('keydown',e=>{const k=e.key;KEYS.add(k);if(e.repeat&&['mgGrade','mgLoad'].includes(S.screen))return;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','Backspace'].includes(k))e.preventDefault();(KEY[S.screen]||KEY.title)(k);});
+document.addEventListener('keydown',e=>{const k=e.key;KEYS.add(k);if(e.repeat&&S.screen.startsWith('mg'))return;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','Backspace'].includes(k))e.preventDefault();(KEY[S.screen]||KEY.title)(k);});
 function canvasPoint(e){const r=cv.getBoundingClientRect();if(r.height>r.width)return{x:(e.clientY-r.top)/r.height*1280,y:(r.right-e.clientX)/r.width*960};return{x:(e.clientX-r.left)/r.width*1280,y:(e.clientY-r.top)/r.height*960};}
 cv.addEventListener('pointerdown',e=>{e.preventDefault();try{cv.focus();}catch(_){}
  const p=canvasPoint(e);const h=HIT.find(z=>p.x>=z.x0&&p.x<=z.x1&&p.y>=z.y0&&p.y<=z.y1);
  if(S.screen==='gate'){askGate();return;}
  if(S.screen==='mgGrade'&&S.mg){S.mg.pointerDown=true;S.mg.target=p.y/8;return;}
  if(S.screen==='mgLoad'){dumpBucket();return;}
+ if(S.screen==='mgBlast'){lockCharge();return;}
+ if(S.screen==='mgPick'){startLower();return;}
  if(S.screen==='name'){const v=prompt('What is your name, boss?',S.name);if(v!==null)S.name=v.trim().slice(0,14)||'Boss';KEY.name('Enter');return;}
  if(S.screen==='store'){if(!h)return;if(h.key==='go'){S.sel=STORE.length;KEY.store('Enter');return;}const [act,i]=h.key.split(':');S.sel=+i;if(act==='plus')KEY.store('ArrowRight');else if(act==='minus')KEY.store('ArrowLeft');return;}
  (KEY[S.screen]||KEY.title)(h?h.key:'Enter');});
