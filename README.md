@@ -15,12 +15,12 @@ Keys: ENTER to continue, number keys or arrow keys to choose, LEFT/RIGHT to buy 
 - **Load the Rock Trucks**: excavator timing game. Tap or SPACE when the bucket is over the box (bar turns green). Six buckets per truck, 30 seconds, four spills and Tanya shuts it down. Each truck loaded adds a little progress.
 - **Cut the Grade**: the grader drives itself; you set the blade with UP/DOWN or by dragging. Shave to the yellow string line. 80%+ on grade earns progress and Mel's silence; under 55% is a re-grade week.
 - **Blast the Rock Cut**: eight drill holes; the powder charge rises and falls, tap to lock it in the green band. Light = toe for the hoe ram, heavy = flyrock onto the pickup. Then Tanya's horn and the shot.
-- **Set the Girders**: crane pick with Fredis on the abutment. The girder swings on the hook and keeps swinging while it lowers; tap to lower, land both ends on the green seats. Two in the creek and Fredis leaves for the airport.
+- **Set the Girders**: crane pick with Joe on the abutment. The girder swings on the hook and keeps swinging while it lowers; tap to lower, land both ends on the green seats. Two in the creek and Tanya shuts down the lift.
 - **Harsh's ATP Package**: papers land on the desk; real cut sheets go right (submit to Mel), Harsh's nonsense goes left (shredder). Three pieces of nonsense reach Mel and the ATP is denied.
 - **Scott's Phone**: 100 calls waiting. Each call shows a question from Mel, Andy, the crew, the plant or a trucker; pick the answer a site super would give (tap or 1/2/3) before the bar runs out. Wrong ones get back to Andy. Sixty seconds.
 - **Adam's Dewatering**: tap to work the pump and keep the culvert trench below the yellow bed line while the labour crew places six sections. Rain bursts, and the pump loses prime if you stop for two seconds.
 
-All seven trigger at set points on the job (phone right after mobilization, excavator after Clearing, blasting mid rock cut, crane pick mid bridge, ATP package before the multiplate, grader after the Multiplate, culvert trench at 4+600), as random events, and from the site menu under Mini-games (each costs a week).
+All seven are scheduled once per job, in order, packed into the first 3.5 km (phone 0.35, excavator 0.8, ATP package 1.2, blasting 1.6, culvert 2.1, crane pick 2.5, grader 3.4). Playing one from the site menu counts as its scheduled play. A random "mini-game" event can add extra plays, but it only repeats a game once all seven have been played. The title screen also has "Just play the mini-games" for an arcade mode with no job state.
 
 ## Dev
 
@@ -37,7 +37,7 @@ average two crew members fired by Andy, average loss about $44.5M, most deaths a
 
 ## Cast
 
-Andy Smith (CM), Mel (MOTI), Scott (Site Super), Lenny (GF earthworks), Louie (foreman), Adam (labour foreman), Fredis (bridge super, angry, Calgary), Harsh (project engineer, paperwork), Tanya (Safety). Killed means fired. Mostly.
+Andy Smith (CM), Mel (MOTI), Scott (Site Super), Lenny (GF earthworks), Louie (foreman), Adam (labour foreman), Joe, Harsh (project engineer, paperwork), Tanya (Safety). Killed means fired. Mostly.
 
 ## Phone version
 

@@ -72,7 +72,7 @@ const PARTY_DEF=[
  {name:'Lenny',role:'General Foreman, Earthworks',hat:'#f2c400',shirt:'#8a2a2a'},
  {name:'Louie',role:"Foreman (one of Lenny's)",hat:'#f2c400',shirt:'#3b3b3b'},
  {name:'Adam',role:'Labour Foreman',hat:'#f2c400',shirt:'#2a6fdb'},
- {name:'Fredis',role:'Bridge Super (Colombia). Angry.',hat:'#fff',shirt:'#b3001b',angry:true},
+ {name:'Joe',role:'',hat:'#fff',shirt:'#b3001b'},
  {name:'Harsh',role:'Project Engineer (paperwork)',hat:'#fff',shirt:'#6a3fbf',clip:true},
  {name:'Tanya',role:'Safety',hat:'#fff',shirt:'#ff7a00',vest:true},
 ];
@@ -94,8 +94,8 @@ const MILESTONES=[
   mel:"Mel: 'The blasting notice said Tuesday. It is Tuesday. It was a different Tuesday.'",
   look:"A very large hole in a very large mountain. Lenny's crew has named the biggest boulder Gerald. Gerald is not moving."},
  {km:3,name:'Creek Bridge',deadline:34,fail:"you didn't finish the bridge",
-  mel:"Mel: 'The abutment is 14 millimetres off. I brought my own tape.' Fredis stares at Mel. Mel leaves.",
-  look:'Two abutments and a deck over a creek you could step across in gumboots. Fredis is looking at it the way other people look at an ex.'},
+  mel:"Mel: 'The abutment is 14 millimetres off. I brought my own tape.' Joe checks it with his own tape. They are both right.",
+  look:'Two abutments and a deck over a creek you could step across in gumboots. Joe is already looking at the next one.'},
  {km:4,name:'Multiplate Wildlife Crossing',deadline:46,fail:"you didn't finish the wildlife crossing",
   mel:"Mel: 'Where are the animals?' You explain they will come. Mel writes down 'they will come'.",
   look:'A beautiful corrugated arch under the highway. A grizzly is already inside. He has reviews. They are mixed.'},
@@ -104,7 +104,7 @@ const MILESTONES=[
   look:"Lenny's earthworks crew has moved a small mountain to where a slightly different mountain used to be. Louie is asleep in the grader."},
  {km:6,name:'Paving & Substantial Completion',deadline:68,fail:"you didn't finish the highway",final:true,
   mel:"Mel: 'The shoulders are 50 millimetres narrow.' They are not. You will discuss this for eleven months.",
-  look:'Fresh asphalt. A ribbon. A moose walking the detour instead of the crossing. Fredis is already in Calgary. Somewhere, Andy is composing an email.'},
+  look:'Fresh asphalt. A ribbon. A moose walking the detour instead of the crossing. Somewhere, Andy is composing an email.'},
 ];
 const WEATHERS=[{n:'Clear',w:5},{n:'Rain',w:3},{n:'Sideways rain',w:1},{n:'Snow',w:2},{n:'Smoke',w:2},{n:'Bluebird',w:2}];
 const CONDS=['burnout','the pub flu','a bad back (WCB claim pending)','Tim Hortons withdrawal','a case of the Mondays','hypothermia (it is June)','Mel-induced anxiety'];
@@ -120,7 +120,7 @@ const INTRO=[
  "It is 2026. You are on the Trans-Canada Highway expansion east of Golden, BC, deep in the Selkirks.\n\nEllisDon has six kilometres of highway, a multiplate wildlife crossing and one small bridge over a creek you could step across.",
  "Andy Smith is the Construction Manager. Andy does not miss deadlines. Andy makes sure that other people do not miss deadlines. Permanently.\n\n(Killed means fired. Mostly.)",
  "Mel is the Ministry of Transportation's man on the ground. Mel has a clipboard. Mel has opinions. Mel has never once said 'good job'.",
- "Your crew: Scott the Site Super, Lenny the earthworks GF, his foreman Louie, Adam the labour foreman, Harsh the project engineer (his paperwork to the Ministry is, technically, paper), Tanya from Safety, and Fredis.\n\nFredis is the bridge super. Fredis is from Colombia. Fredis is angry. Fredis does not talk. Fredis leaves for Calgary.",
+ "Your crew: Scott the Site Super, Lenny the earthworks GF, his foreman Louie, Adam the labour foreman, Harsh the project engineer (his paperwork to the Ministry is, technically, paper), Tanya from Safety, and Joe.\n\nTanya will shut down the site. It is not a question of if.",
  "Reach Substantial Completion by Week 68, keep the crew alive, and try to lose EllisDon less than $45 million.\n\nNobody has ever done all three.",
 ];
 const ABOUT=[
@@ -139,7 +139,7 @@ const EVENTS=[
  {w:4,t:"Mel from the Ministry arrives unannounced. He has a clipboard and a look.",ch:[
    {l:"Show him the wildlife crossing",run:s=>s.km>=4?{t:"Mel nods. He writes 'acceptable'. It is the nicest thing he has ever written.",fx:{health:5}}:{t:"There is no wildlife crossing yet. Mel writes for a long time. You are issued a Non-Conformance Report for 'vibes'.",fx:{weeks:1,loss:150000}}},
    {l:"Distract him with a box of Timbits",cond:s=>s.coffee>=20,fx:{coffee:-20},t:"Mel eats eleven Timbits and forgets why he came. Crisis averted."},
-   {l:"Send him to talk to Fredis",cond:s=>fredisHere(),run:()=>Math.random()<0.6?{t:"Mel walks over to Fredis. Fredis looks at him. Mel walks back. Mel leaves. Mel does not come back for a month.",fx:{health:4}}:{t:"Mel walks over to Fredis. Fredis gets in his truck and drives to Calgary.",fx:{},on:s=>fredisLeaves(2)}},
+   {l:"Send him to talk to Joe",cond:s=>joeHere(),run:()=>Math.random()<0.6?{t:"Mel talks to Joe about bearing pads for an hour. Mel leaves with a headache and no findings.",fx:{health:4}}:{t:"Mel talks to Joe. Joe has questions for Mel. Mel is not used to that. Mel writes a memo.",fx:{weeks:1}}},
    {l:"Have Harsh hand him a binder",run:()=>Math.random()<0.5?{t:"Harsh hands Mel a binder. It is last month's binder with a new cover. Mel does not notice. Mel leaves happy.",fx:{health:3}}:{t:"Mel opens Harsh's binder. Page three is a takeout menu from the Golden Dragon. NCR.",fx:{weeks:1,loss:200000}}},
    {l:"Hide behind the crane",fx:{weeks:1,loss:250000},t:"Mel finds you in forty seconds. He issues an NCR for 'hiding'."}]},
  {w:4,t:"Tanya has shut down the site. Someone's hi-vis was 'more of a beige'.",ch:[
@@ -149,7 +149,7 @@ const EVENTS=[
  {w:3,t:"A grizzly has moved into the half-built wildlife crossing. The environmental monitor says 'See? It works!'",cond:s=>s.km>=3&&s.km<5,fx:{weeks:2}},
  {w:3,t:"Design Change #47 arrives from MOTI. The creek bridge is now 1.2 metres longer. The creek is not.",cond:s=>s.km<3,fx:{weeks:3,loss:2000000}},
  {w:2,t:"Louie found a rock that looks like a fossil. It is a rock. Archaeology hold anyway.",fx:{weeks:2,loss:120000}},
- {w:2,t:"Someone ordered 400 cubic metres of concrete for a 40 cubic metre abutment pour. Fredis knows who. Fredis is not saying.",cond:s=>s.km>=2&&s.km<4,fx:{loss:180000}},
+ {w:2,t:"Someone ordered 400 cubic metres of concrete for a 40 cubic metre abutment pour. Nobody is saying who.",cond:s=>s.km>=2&&s.km<4,fx:{loss:180000}},
  {w:2,t:"Adam's labour crew says they are two weeks ahead. Adam's labour crew has never once been right.",fx:{}},
  {w:3,t:"Highway 1 is closed east of Golden. Again. The girder truck is stuck in Revelstoke eating a Denny's breakfast.",cond:s=>s.km>=2&&s.km<3,fx:{weeks:2,loss:220000}},
  {w:3,t:"Rockfall on the haul road. Nobody hurt. The grader is now a shorter grader.",cond:s=>s.graders>0,fx:{graders:-1,weeks:1,loss:410000}},
@@ -163,7 +163,7 @@ const EVENTS=[
    {l:"Let Lenny translate with his phone",run:()=>Math.random()<0.6?{t:"Lenny's phone says 'Insert the arch into the bear'. Close enough. Bolting begins.",fx:{}}:{t:"Two weeks in, the arch is upside down.",fx:{weeks:2,loss:90000}}},
    {l:"Wait for the supplier's rep from Ontario",fx:{weeks:3,loss:40000},t:"The rep arrives, looks at it, says 'yeah', and leaves."}]},
  {w:3,t:"The environmental monitor found a toad. All work stops for the toad. The toad is not in a hurry.",fx:{weeks:1}},
- {w:3,t:"Freshet. The creek is now 40 centimetres deep instead of 10. Fredis has declared it 'a river' and gone to Calgary.",cond:s=>s.km>=2&&s.km<3&&fredisHere(),fx:{weeks:2,loss:300000},on:s=>fredisLeaves(2)},
+ {w:3,t:"Freshet. The creek is now 40 centimetres deep instead of 10. Joe has moved the forms twice. The creek is still winning.",cond:s=>s.km>=2&&s.km<3,fx:{weeks:2,loss:300000}},
  {w:2,t:"Blasting delayed. Someone forgot to call the Ministry. Lenny says it was Louie. Louie says it was Lenny.",cond:s=>s.km<2,fx:{weeks:1,loss:35000}},
  {w:2,t:"You found $50,000 of change orders that were never billed. Andy says 'good' for the first time in his life.",fx:{loss:-50000,health:5}},
  {w:2,t:"Louie welded the yard gate shut. With the rock trucks inside.",cond:s=>s.trucks>0,fx:{weeks:1}},
@@ -174,7 +174,7 @@ const EVENTS=[
  {w:2,t:"Scott found the original schedule in a drawer. Everyone laughed for a long time. Then cried a bit.",fx:{health:3}},
  {w:1,t:"Andy Smith visited site. Someone said 'it's fine' in front of Mel. Andy now needs someone to blame.",kill:"someone said 'it's fine' in front of Mel"},
  {w:2,t:"Diesel prices in Golden went up again. Louie is now siphoning the pickup.",fx:{fuel:-1500,loss:40000}},
- {w:2,t:"The crane certification expired yesterday. The girders arrive today. Fredis is standing very still.",cond:s=>s.crane>0&&s.km>=2&&s.km<3,ch:[
+ {w:2,t:"The crane certification expired yesterday. The girders arrive today. Joe is waiting.",cond:s=>s.crane>0&&s.km>=2&&s.km<3,ch:[
    {l:"Wait for the inspector from Calgary",fx:{weeks:2,loss:120000},t:"The inspector arrives, stamps it, and bills for mileage."},
    {l:"Lift anyway, quietly",run:()=>Math.random()<0.5?{t:"Nobody noticed. Tanya noticed. Tanya always notices. Site shut for a week.",fx:{weeks:1,health:-5}}:{t:"Girders are up. You feel bad. Not that bad.",fx:{}}}]},
  {w:2,t:"Sideways rain for eleven days. Louie's boots have become a habitat.",fx:{weeks:1,health:-3}},
@@ -184,13 +184,7 @@ const EVENTS=[
  {w:2,t:"Lenny's earthworks crew hit a boulder the size of a house. Lenny wants to blast. Tanya wants a meeting. Scott wants lunch.",cond:s=>s.km>=4&&s.km<6,fx:{weeks:1,loss:140000}},
  {w:2,t:"Adam's labour crew shovelled the wrong ditch. It is a very clean ditch. It is on the other side of the highway.",fx:{weeks:1}},
  // ---- mini-games ----
- {w:4,t:"Lenny: 'The pit's backed up and the excavator operator went to Calgary with Fredis. Get in.'",cond:s=>s.trucks>0&&(s.km<3||s.km>=4),mg:'load'},
- {w:4,t:"Louie: 'Grader's fuelled. Mel's coming at two to check the grade. You're up.'",cond:s=>s.graders>0&&s.km>=4,mg:'grade'},
- {w:3,t:"Lenny: 'Powder truck is here and the blaster called in sick. You have a ticket, right?' You do not have a ticket.",cond:s=>s.km>=1&&s.km<2,mg:'blast'},
- {w:3,t:"Fredis is standing on the abutment. The girder is on the hook. He points at you, then at the crane. That is the whole briefing.",cond:s=>s.crane>0&&s.km>=2&&s.km<3&&fredisHere(),mg:'pick'},
- {w:3,t:"Harsh: 'The ATP package is due at noon. I have... most of it.' It is 11:20.",mg:'paper'},
- {w:3,t:"Scott: 'Hundred calls since six. You take it. I'm going to look at the bridge.' He hands you the phone. It is ringing.",mg:'phone'},
- {w:3,t:"Adam: 'Culvert sections are here, trench is wet, pump's a bit temperamental.' Adam's crew is already standing in the water.",cond:s=>s.km>=1,mg:'pump'},
+ {w:5,t:'',mgAny:true},
  // ---- Harsh ----
  {w:3,t:"Harsh submitted the QA package to the Ministry. It was 400 pages. Mel read all of it. It was 400 copies of the same page.",fx:{weeks:1,loss:90000}},
  {w:3,t:"Harsh's RFI response cites a spec clause that does not exist. Mel has asked for the clause. Harsh is now writing the clause.",fx:{weeks:1}},
@@ -202,31 +196,33 @@ const EVENTS=[
  {w:3,t:"Mel asks for the concrete test results. Harsh has 'test results'.",cond:s=>s.km>=2&&s.km<4,ch:[
    {l:"Submit Harsh's test results",run:()=>Math.random()<0.55?{t:"Mel files them without reading. Harsh winks. Everyone pretends not to see the wink.",fx:{}}:{t:"Mel reads them. The cylinder IDs are from 2019. Non-Conformance Report, two weeks, and Mel now reads everything.",fx:{weeks:2,loss:180000}}},
    {l:"Actually test the concrete",fx:{weeks:1,loss:40000},t:"The concrete is fine. It was always fine. Harsh is offended that you checked."}]},
- // ---- Fredis ----
- {w:4,t:"Fredis has left for Calgary. He did not say why. He did not say anything. He has never said anything.",cond:s=>fredisHere(),fx:{},on:s=>fredisLeaves(2)},
- {w:3,t:"Fredis and Mel made eye contact. Neither has spoken since. It has been nine days.",cond:s=>fredisHere(),fx:{weeks:1}},
- {w:2,t:"Fredis called the girder supplier and yelled in Spanish for twenty minutes. The girders will arrive a week early. Nobody thanks him. Nobody dares.",cond:s=>fredisHere()&&s.km>=2&&s.km<3,fx:{loss:-150000,health:3}},
- {w:2,t:"Adam's labour crew tried to include Fredis in the toolbox talk. Fredis got in his truck. Fredis is now in Canmore, which is on the way to Calgary.",cond:s=>fredisHere(),fx:{},on:s=>fredisLeaves(1)},
- {w:2,t:"Fredis slammed the trailer door so hard the survey control moved. Lenny has to re-shoot the whole alignment.",cond:s=>fredisHere(),fx:{weeks:1,loss:60000}},
- {w:1,t:"Fredis smiled today. Everyone is terrified.",cond:s=>fredisHere(),fx:{health:2}},
- {w:2,t:"Scott asked Fredis how the abutments were going. Fredis pointed at the abutments. They are perfect. Then he drove to Calgary.",cond:s=>fredisHere()&&s.km>=2&&s.km<4,fx:{},on:s=>fredisLeaves(1)},
- {w:2,t:"Fredis has been gone eleven days. A postcard arrived from Calgary. It is blank.",cond:s=>fredisAlive()&&!fredisHere()&&s.fredisAway<900,fx:{}},
+ // ---- Joe ----
+ {w:3,t:"Joe has gone to Calgary for a few days. The bridge waits.",cond:s=>joeHere(),fx:{},on:s=>joeLeaves(2)},
+ {w:2,t:"Joe found the abutment forms 14 millimetres off and fixed them before Mel arrived. Mel measured anyway.",cond:s=>joeHere(),fx:{health:2}},
+ {w:2,t:"Joe called the girder supplier. The girders will arrive a week early.",cond:s=>joeHere()&&s.km>=2&&s.km<3,fx:{loss:-150000,health:3}},
+ {w:2,t:"Joe is still in Calgary. The abutment forms are ready for him when he is back.",cond:s=>joeAlive()&&!joeHere()&&s.joeAway<900,fx:{}},
 ];
 
+// Mini-game schedule: each game once, early in the job, in this order. Playing one from the menu counts.
+const MG_TYPES=['phone','load','paper','blast','pump','pick','grade'];
+const MG_OK={load:s=>s.trucks>0,pick:s=>s.crane>0,grade:s=>s.graders>0};
+const MG_PROMPT={phone:"Scott's phone has not stopped since mobilization. He hands it to you and walks toward the bridge.",load:"Lenny: 'Clearing's done. Now the real work. Get in the excavator and load some trucks.'",paper:"Mel wants the ATP package for the rock cut by noon. Harsh has been 'compiling'. You have seen what Harsh compiles.",blast:"Lenny: 'Holes are drilled. Powder truck's here. You're loading.'",pump:"Cross culvert at 2+100. Adam's crew has the trench open. It has been raining since Tuesday.",pick:"Joe is on the abutment. The girders are on the hook.",grade:"Lenny: 'Grade's yours on the approach fill. Don't embarrass me in front of Mel.'"};
+const MG_SCHEDULE=[['phone',0.35],['load',0.8],['paper',1.2],['blast',1.6],['pump',2.1],['pick',2.5],['grade',3.4]];
+const mgAllowed=ty=>!MG_OK[ty]||MG_OK[ty](S);
 // ---------------- tuning ----------------
 const CFG={speed:0.14,evRate:0.42,illRate:0.07,burn:600000,lateKill:8};
 // ---------------- state ----------------
 let S;
 function newGame(){S={screen:'title',week:1,km:0,loss:0,cash:0,fuel:0,coffee:0,vests:6,tracks:0,trucks:0,dozers:0,graders:0,crane:0,
  pace:0,ration:0,weather:'Clear',party:PARTY_DEF.map(p=>Object.assign({},p,{health:100,alive:true,cond:null,condWeeks:0,gone:''})),
- graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],fredisAway:0,fredisLeftAt:0,fredisRetAt:0,blasted:false,picked:false,papered:false,phoned:false,pumped:false};}
+ graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],joeAway:0,joeLeftAt:0,joeRetAt:0,played:{},arcade:false};}
 newGame();if(!gateOpen())S.screen='gate';
 const alive=()=>S.party.filter(p=>p.alive);
-const fredisHere=()=>{const f=S.party.find(p=>p.name==='Fredis');return !!(f&&f.alive)&&S.fredisAway<=0;};
-const fredisAlive=()=>{const f=S.party.find(p=>p.name==='Fredis');return !!(f&&f.alive);};
+const joeHere=()=>{const f=S.party.find(p=>p.name==='Joe');return !!(f&&f.alive)&&S.joeAway<=0;};
+const joeAlive=()=>{const f=S.party.find(p=>p.name==='Joe');return !!(f&&f.alive);};
 const now=()=>performance.now()/1000;
-function fredisLeaves(weeks){S.fredisAway=weeks;S.fredisLeftAt=now();}
-const FREDIS_TALK=["Fredis looks at you. Fredis says nothing. Fredis gets in his truck.","You say 'Morning, Fredis.' Fredis says nothing. The silence lasts four minutes. You leave.","Fredis is on the phone in Spanish. It is not a happy call. He points east, toward Calgary.","Fredis's reply is a single word. It is not a word you know. Tanya confirms it is not a safety word.","Fredis nods. It is the most he has said all month. Scott calls it a breakthrough."];
+function joeLeaves(weeks){S.joeAway=weeks;S.joeLeftAt=now();}
+const JOE_TALK=["Joe: 'Bearing pads are in. Girders Thursday.'","Joe: 'Crane's fine. Ground's fine. Weather's not.'","Joe is measuring something. He waves you off. It can wait.","Joe: 'Tell Harsh I need the real cut sheets, not the other ones.'"];
 const burn=()=>CFG.burn*[1,1.25,1.7][S.pace];
 const PACES=['Steady (MOTI approved)','Strenuous (10s, 6 days)','Grueling (24/7, lights on)'];
 const RATIONS=['Filling (double-double)','Meager (one per shift)','Bare bones (instant)'];
@@ -242,12 +238,12 @@ function fire(reason){const a=alive();if(!a.length){gameover(reason);return;}
  const v=rnd(a);v.alive=false;v.gone='Andy';S.fired++;S.graves.push({name:v.name,epi:reason});
  show({t:`Andy Smith killed ${v.name} because ${reason}.`,andy:true});}
 function leave(p){p.alive=false;p.gone='quit';S.quit++;S.graves.push({name:p.name,epi:'went to the ski hill'});
- if(p.name==='Fredis'){S.fredisAway=0;fredisLeaves(999);show({t:"Fredis went to Calgary and did not come back. He sent one text. It said 'no'."});return;}
+ if(p.name==='Joe'){S.joeAway=0;joeLeaves(999);show({t:"Joe has taken a job in Calgary. He left the bearing pad drawings on your desk."});return;}
  show({t:`${p.name} quit to go work at Kicking Horse Resort. ${p.name} says the snow is more reliable than the schedule.`});}
 function gameover(reason){S.deathReason=reason;S.moving=false;S.screen='dead';S.queue=[];}
 function randomEvent(){const pool=EVENTS.filter(e=>!e.cond||e.cond(S));const e=pickW(pool);
  if(e.kill){show({t:e.t,then:()=>fire(e.kill)});return;}
- if(e.mg){show({t:e.t,then:()=>startMG(e.mg)});return;}
+ if(e.mgAny){const fresh=MG_TYPES.filter(ty=>!S.played[ty]&&mgAllowed(ty));const pool=fresh.length?fresh:MG_TYPES.filter(mgAllowed);const ty=rnd(pool);show({t:MG_PROMPT[ty],then:()=>startMG(ty)});return;}
  if(e.ch){show({t:e.t,ch:e.ch.filter(c=>!c.cond||c.cond(S))});return;}
  applyFx(e.fx);if(e.on)e.on(S);show({t:e.t});}
 function illness(){const a=alive();if(!a.length)return;const p=rnd(a.filter(x=>!x.cond));if(!p)return;p.cond=rnd(CONDS);p.condWeeks=4;show({t:`${p.name} has ${p.cond}.`});}
@@ -259,8 +255,8 @@ function tick(){
  const fleet=S.dozers>0?0.6+0.08*Math.min(S.trucks,6)+(S.graders>0?0.1:0):0.35;
  const pf=[1,1.3,1.6][S.pace];
  let speed=CFG.speed*fleet*pf*wf; if(S.fuel<=0)speed*=0.3;
- if(S.msIndex===2&&!fredisHere())speed*=0.6;   // bridge without the bridge super
- if(S.fredisAway>0&&S.fredisAway<900){if(--S.fredisAway<=0){S.fredisRetAt=now();show({t:rnd(["Fredis is back from Calgary. He is angrier. The abutment forms are, somehow, perfect.","Fredis returned at 4 a.m. He did not say where he was. Nobody asked. His truck has new tires.","Fredis is back. He walked past everyone, looked at the creek for an hour, and went into the trailer."])});return;}}
+ if(S.msIndex===2&&!joeHere())speed*=0.6;   // bridge without the bridge super
+ if(S.joeAway>0&&S.joeAway<900){if(--S.joeAway<=0){S.joeRetAt=now();show({t:rnd(["Joe is back from Calgary. The abutment forms are ready.","Joe is back. He went straight to the creek to check the forms."])});return;}}
  const use=(200+S.trucks*350+S.dozers*500+S.graders*250+S.crane*150)*pf;
  const hadFuel=S.fuel>0; S.fuel=Math.max(0,S.fuel-use);
  S.coffee=Math.max(0,S.coffee-[14,7,3][S.ration]*alive().length);
@@ -271,11 +267,7 @@ function tick(){
  const next=MILESTONES[S.msIndex];
  S.km=Math.min(S.km+speed,next.km);
  if(S.km>=next.km){reachMilestone(next);return;}
- if(!S.phoned&&S.km>=0.5&&S.km<1){S.phoned=true;show({t:"Scott's phone has not stopped since mobilization. He hands it to you and walks toward the bridge without a word.",then:()=>startMG('phone')});return;}
- if(!S.pumped&&S.km>=4.5&&S.km<5){S.pumped=true;show({t:"Cross culvert at 4+600. Adam's crew has the trench open. It has been raining since Tuesday.",then:()=>startMG('pump')});return;}
- if(!S.blasted&&S.km>=1.4&&S.km<2){S.blasted=true;show({t:"Lenny: 'Holes are drilled. Powder truck's here. You're loading.'",then:()=>startMG('blast')});return;}
- if(!S.papered&&S.km>=3.3&&S.km<4){S.papered=true;show({t:"Mel wants the ATP package for the multiplate by noon. Harsh has been 'compiling'. You have seen what Harsh compiles.",then:()=>startMG('paper')});return;}
- if(!S.picked&&S.km>=2.4&&S.km<3&&S.crane>0){S.picked=true;show({t:fredisHere()?"Fredis walked out to the abutment, pointed at the girders, pointed at the crane, and crossed his arms.":"Fredis is in Calgary. The girders are here. Scott says 'you've seen him do it', which is not the same as knowing how.",then:()=>startMG('pick')});return;}
+ for(const [ty,km] of MG_SCHEDULE){if(S.km>=km&&!S.played[ty]&&mgAllowed(ty)){show({t:MG_PROMPT[ty],then:()=>startMG(ty)});return;}}
  if(S.fuel<=0&&hadFuel){applyFx({weeks:1,loss:45000,fuel:20000});show({t:"You are out of diesel. Louie siphons the pickup. A fuel truck from Golden brings 20,000 L a week later. $45,000, plus a tip."});return;}
  if(S.coffee<=0&&Math.random()<0.25){show({t:rnd(["The crew is out of coffee. Adam has stopped blinking.","No coffee. Scott is drinking hydraulic fluid 'as a joke'. It is not a joke.","Coffee gone. Lenny has started a fire just to feel something."])});return;}
  const r=Math.random();
@@ -286,9 +278,7 @@ function reachMilestone(m){S.moving=false;S.msIndex++;S.msCur=m;S.late=Math.max(
  if(m.final){S.screen='win';S.page=0;return;}
  S.screen='milestone';S.sel=0;}
 function afterMilestone(){const m=S.msCur;S.screen='travel';S.moving=true;S.ret='travel';
- if(m.km===2&&S.crane<=0){applyFx({weeks:4,loss:2500000,crane:1});show({t:"The creek bridge is next and you have no crane. Sterling Crane sends one from Calgary: four weeks and $2,500,000. Fredis watched you not order it. He said nothing."});}
- if(m.km===1&&S.trucks>0)show({t:"Lenny: 'Clearing's done. Now the real work. Get in the excavator and load some trucks.'",then:()=>startMG('load')});
- if(m.km===4&&S.graders>0)show({t:"Lenny: 'Grade's yours. Don't embarrass me in front of Mel.'",then:()=>startMG('grade')});
+ if(m.km===2&&S.crane<=0){applyFx({weeks:4,loss:2500000,crane:1});show({t:"The creek bridge is next and you have no crane. Sterling Crane sends one from Calgary: four weeks and $2,500,000. Joe watched you not order it."});}
  if(S.late>0)fire(`${m.name} finished ${S.late} week${S.late>1?'s':''} late`);}
 
 // ---------------- scene drawing ----------------
@@ -359,11 +349,11 @@ function drawScene(v,t){
   P(114,98,92,2,C.grey3);}
  if(st>=3)multiplate(262,128,12,true);
  if(st===2){for(let i=0;i<3;i++)P(228+i*2,96-i*3,16,3,i%2?C.grey:C.grey3);}
- // ---- grass row (base 94): graves, dozer pushing, Fredis's truck
+ // ---- grass row (base 94): graves, dozer pushing, Joe's truck
  v.graves.forEach((g,i)=>tombstone(284+(i%3)*10+(i>=3?5:0),72-(i>=3?10:0)));
  if(v.dozers>0){const ph=(ta*0.5)%1;const dx=214+ph*10;dozerR(dx,94,ta);const pile=4+ph*6;P(dx+29,94-pile,pile+3,pile,C.dirt3);P(dx+29,94-pile,pile+3,1,C.dirt);if(mv)puff(dx+16,94-21,t,0);}
- const fa=v.fredisAway||0,fl=v.fredisLeftAt||0,fr=v.fredisRetAt||0;
- if(v.fredisAlive!==false){let fx=null;
+ const fa=v.joeAway||0,fl=v.joeLeftAt||0,fr=v.joeRetAt||0;
+ if(v.joeAlive!==false){let fx=null;
   if(fa>0){const d=t-fl;if(d<3.5)fx=250+d*40;}
   else{const d=t-fr;fx=(fr&&d<3.5)?Math.max(250,330-d*40):250;}
   if(fx!==null&&fx<330)pickup(fx,94,'#b3001b',t,false);}
@@ -378,20 +368,20 @@ function drawScene(v,t){
  cone(70,100);cone(216,100);
  if(st<5)barricade(110,100);
  // crew
- let i=0;for(const p of v.party){if(p.alive===false)continue;if(p.name==='Fredis'&&fa>0)continue;const bob=(mv&&Math.floor(t*4+i)%2)?-1:0;person(64+i*6.5,100+bob,p);i++;}
+ let i=0;for(const p of v.party){if(p.alive===false)continue;if(p.name==='Joe'&&fa>0)continue;const bob=(mv&&Math.floor(t*4+i)%2)?-1:0;person(64+i*6.5,100+bob,p);i++;}
  for(const e of v.extras)person(e.x,100,e);
  // weather
  if(v.weather==='Snow')for(const f of FLAKES)P((f.x+t*8*f.v)%320,(f.y+t*25*f.v)%186,1,1,'#fff');
  if(v.weather==='Rain'||v.weather==='Sideways rain'){const sl=v.weather==='Rain'?1:4;for(const f of FLAKES)L((f.x+t*40*f.v*sl)%320,(f.y+t*120*f.v)%186,((f.x+t*40*f.v*sl)%320)+sl,((f.y+t*120*f.v)%186)+3,'#9fc7ff',0.3);}
  if(v.weather==='Smoke'){ctx.globalAlpha=0.35;P(0,0,SW,SH,'#ff8a2a');ctx.globalAlpha=1;}
 }
-function viewFromState(o){return Object.assign({km:S.km,night:S.pace===2,weather:S.weather,trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:S.party,graves:S.graves,moving:S.moving,extras:S.extras,fredisAway:S.fredisAway,fredisLeftAt:S.fredisLeftAt,fredisRetAt:S.fredisRetAt,fredisAlive:fredisAlive()},o||{});}
+function viewFromState(o){return Object.assign({km:S.km,night:S.pace===2,weather:S.weather,trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:S.party,graves:S.graves,moving:S.moving,extras:S.extras,joeAway:S.joeAway,joeLeftAt:S.joeLeftAt,joeRetAt:S.joeRetAt,joeAlive:joeAlive()},o||{});}
 
 // ---------------- mini-games ----------------
 // Drawn at PX=8 on a 160x93 logical grid (same 1280x744 scene area). Update happens inside the draw using DT.
 let DT=0,lastMs=0;const KEYS=new Set();
 const MG_LOAD_TIME=30;
-function startMG(type){S.moving=false;S.mg={type,phase:'intro',pointerDown:false,target:null};
+function startMG(type){S.moving=false;S.played=S.played||{};S.played[type]=(S.played[type]||0)+1;S.mg={type,phase:'intro',pointerDown:false,target:null};
  if(type==='load'){Object.assign(S.mg,{s:0,dir:1,omega:0.55,full:true,loads:0,trucks:0,spills:0,timeLeft:MG_LOAD_TIME,rocks:[],truckX:72,leaving:0,arriving:0,flash:0,flashTxt:''});}
  else if(type==='blast'){const band=[];for(let i=0;i<8;i++){const c=18+Math.round(Math.random()*10);band.push([c-4,c+4]);}Object.assign(S.mg,{i:0,ch:0,dir:1,speed:26,charges:[],kind:[],band,parts:[],flash:0,flashTxt:'',t:0});}
  else if(type==='paper'){Object.assign(S.mg,{real:0,bs:0,shred:0,shredReal:0,timeLeft:30,doc:null,docLife:3.2,fly:0,flyDir:1,flash:0,flashTxt:''});}
@@ -401,7 +391,7 @@ function startMG(type){S.moving=false;S.mg={type,phase:'intro',pointerDown:false
  else{const design=[],ground=[];for(let x=0;x<160;x++){const d=62+Math.round(5*Math.sin(x/23)+2*Math.sin(x/7));design.push(d);let b=Math.round(Math.random()*7);if(Math.random()<0.1)b=-2;ground.push(d-b);}
   Object.assign(S.mg,{design,ground,gx:-30,by:design[0]-5,dust:[],cutCols:0});}
  S.screen='mgIntro';}
-function mgFinish(text,fx,kmBonus){S.week++;S.loss+=burn();applyFx(fx);
+function mgFinish(text,fx,kmBonus){if(S.arcade){S.mg=null;S.ret='mgMenu';show({t:text});return;}S.week++;S.loss+=burn();applyFx(fx);
  if(kmBonus>0){const nx=MILESTONES[S.msIndex];S.km=Math.min(S.km+kmBonus,nx?nx.km-0.01:6);}
  S.mg=null;S.ret='travel';show({t:text});}
 // ---- Load the rock trucks ----
@@ -448,7 +438,7 @@ function endLoad(){const m=S.mg;const n=m.trucks;let text,fx={},bonus=0.05*n;
  if(m.spills>=4){text=`Tanya shut the pit down after your fourth spill. ${n} truck${n===1?'':'s'} loaded, ${m.spills} spills, one very long meeting about "line of fire".`;fx={weeks:1,health:-4,loss:m.spills*8000};}
  else if(n>=5){text=`${n} trucks loaded in thirty seconds. Lenny says "not bad", which from Lenny is a parade. Louie is sulking.`;fx={health:4,loss:m.spills*8000};}
  else if(n>=3){text=`${n} trucks loaded. Adequate. Scott has seen worse, mostly from Adam. ${m.spills?m.spills+' spill'+(m.spills>1?'s':'')+' at $8,000 a tire.':'No spills. Tanya is suspicious.'}`;fx={health:1,loss:m.spills*8000};}
- else{text=`${n} truck${n===1?'':'s'} loaded. The excavator operator has been called back from Calgary. So has Fredis, who watched the whole thing in silence.`;fx={health:-2,loss:m.spills*8000};bonus=0.02*n;}
+ else{text=`${n} truck${n===1?'':'s'} loaded. The excavator operator has been called back from Calgary. Joe watched the whole thing from the abutment.`;fx={health:-2,loss:m.spills*8000};bonus=0.02*n;}
  mgFinish(text,fx,bonus);}
 // ---- Cut the grade ----
 function drawMGGrade(t){const m=S.mg;PX=8;try{
@@ -525,7 +515,7 @@ function endBlast(g,u,o){let text,fx={},bonus=0;
  else if(g>=6&&o===0){text=`Clean shot. ${g} of 8 holes broke to grade${u?', '+u+' with a bit of toe':''}. Lenny says the muckpile is 'pretty'. Louie is already in the excavator.`;fx={health:3,loss:u*15000};bonus=0.15;}
  else{text=`${g} good, ${u} light, ${o} heavy. The hoe ram will be on the toe for ${u*2} days.${o?' The pickup has '+o+' new dent'+(o>1?'s':'')+'. Tanya has '+o+' new photo'+(o>1?'s':'')+'.':''}`;fx={loss:u*15000+o*40000,weeks:u>=3?1:0,health:o?-2:0};bonus=g>=4?0.08:0.03;}
  mgFinish(text,fx,bonus);}
-// ---- Set the girders (crane pick, Fredis watching) ----
+// ---- Set the girders (crane pick, Joe watching) ----
 function startLower(){const m=S.mg;if(!m||m.phase!=='swing')return;m.phase='lower';}
 function newGirder(m){m.gy=20;m.A=16+m.sets*5+m.misses*3;m.w=1.2+m.sets*0.3;m.ph=Math.random()*6;m.gust=2+Math.random()*2;}
 function drawMGPick(t){const m=S.mg;PX=8;try{
@@ -533,7 +523,7 @@ function drawMGPick(t){const m=S.mg;PX=8;try{
   if(m.phase==='swing')m.A=Math.max(6,m.A-1.2*DT);else{m.A*=Math.max(0,1-0.45*DT);m.gy+=15*DT;
    if(m.gy>=53){m.gy=53;const err=m.cx-80;m.lastErr=err;
     if(Math.abs(err)<=3){m.sets++;m.flash=0.9;m.flashTxt='SET';m.phase='rest';m.t=0;m.errs.push(Math.abs(err));}
-    else if(Math.abs(err)<=7){m.sets++;m.flash=0.9;m.flashTxt='CLOSE. FREDIS HAS A BAR.';m.phase='rest';m.t=0;m.errs.push(Math.abs(err));}
+    else if(Math.abs(err)<=7){m.sets++;m.flash=0.9;m.flashTxt='CLOSE. JOE HAS A BAR.';m.phase='rest';m.t=0;m.errs.push(Math.abs(err));}
     else{m.misses++;m.flash=1.2;m.flashTxt='MISS';m.phase='drop';m.t=0;}}}}
  m.cx=80+m.A*Math.sin(m.ph);
  if(m.phase==='rest'){m.t+=DT;if(m.t>1){if(m.sets>=3)m.phase='over';else{newGirder(m);m.phase='swing';}}}
@@ -554,8 +544,8 @@ function drawMGPick(t){const m=S.mg;PX=8;try{
  if(m.phase==='drop'){const tl=Math.min(1,m.t)*6;P(cx-32,gy-tl,32,5,C.girder);P(cx,gy+tl,32,5,C.girder);}
  else{P(cx-32,gy,64,5,C.girder);P(cx-32,gy,64,1,C.girder2);P(cx-32,gy+4,64,1,C.girder3);}
  if(m.phase==='swing'||m.phase==='lower'){const ok=Math.abs(cx-80)<=3;P(77,60,7,1,ok?'#00ff66':'#ffd400');}
- // Fredis on the right abutment, arms crossed, judging
- person(126,58,{hat:'#fff',shirt:'#b3001b',angry:true});
+ // Joe on the right abutment, arms crossed, judging
+ person(126,58,{hat:'#fff',shirt:'#b3001b'});
  if(m.flashTxt==='MISS'&&m.flash>0)P(124,44,10,1,'#ff4040');
  }finally{PX=4;}
  ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
@@ -564,10 +554,10 @@ function drawMGPick(t){const m=S.mg;PX=8;try{
  if(m.flash>0)txt(m.flashTxt,640,300,m.flashTxt.length>6?60:90,m.flashTxt==='SET'?'#00ff66':m.flashTxt==='MISS'?'#ff4040':'#ffd400','center');ctx.restore();
  if(m.phase==='over')endPick();}
 function endPick(){const m=S.mg;const avg=m.errs.length?m.errs.reduce((a,b)=>a+b,0)/m.errs.length:99;let text,fx={},bonus=0;
- if(m.misses>=2){text="Two girders in the creek. The creek is ankle deep, so the girders are fine. Fredis is not. He did not drive to Calgary. He drove to the airport. Tanya has shut down the lift.";fx={weeks:2,loss:250000,health:-4};fredisLeaves(3);}
- else if(m.misses===1){text="One girder in the creek, two on the seats. Fredis looked at the creek for a long time, got in his truck, and drove to Calgary without a word. The bars are still where he left them.";fx={weeks:1,loss:90000,health:-2};bonus=0.06;fredisLeaves(2);}
- else if(avg<=2){text="Three girders, three seats, no bar needed. Fredis looked at the bearing pads, looked at you, and nodded once. Scott says it is the most Fredis has ever said to anyone.";fx={health:5};bonus=0.15;}
- else{text="Three girders set. Fredis fixed two of them with a bar and said nothing, which is the good kind of nothing. Mel measured them anyway.";fx={health:2};bonus=0.1;}
+ if(m.misses>=2){text="Two girders in the creek. The creek is ankle deep, so the girders are fine. Joe is not. He has gone to Calgary to think about it. Tanya has shut down the lift.";fx={weeks:2,loss:250000,health:-4};joeLeaves(2);}
+ else if(m.misses===1){text="One girder in the creek, two on the seats. Joe pulled it out with the excavator and re-set it himself. He did not say much.";fx={weeks:1,loss:90000,health:-2};bonus=0.06;}
+ else if(avg<=2){text="Three girders, three seats, no bar needed. Joe nodded. Scott says that's a good day.";fx={health:5};bonus=0.15;}
+ else{text="Three girders set. Joe fixed two of them with a bar. Mel measured them anyway.";fx={health:2};bonus=0.1;}
  mgFinish(text,fx,bonus);}
 // ---- Harsh's ATP package (submit the cut sheets, shred the nonsense) ----
 const PAPER_REAL=["CUT SHEET   Sta 1+240 to 1+320   CL cut 0.85 m","CUT SHEET   Sta 2+060   Ditch invert 812.40","CUT SHEET   Sta 3+100 to 3+180   Fill 1.20 m","CUT SHEET   Sta 4+420   Subgrade 809.15","CUT SHEET   Sta 0+980   Rock cut 3.40 m","CUT SHEET   Sta 5+200 to 5+260   Crossfall 2%","CUT SHEET   Sta 2+700   Abutment seat 815.02","CUT SHEET   Sta 1+860   Culvert invert 811.70","CUT SHEET   Sta 3+640   Multiplate invert 810.05","CUT SHEET   Sta 5+900   Top of asphalt 808.60"];
@@ -613,18 +603,18 @@ function endPaper(){const m=S.mg;let text,fx={},bonus=0;
 // ---- Scott's phone (100 calls, answer the right way, fast) ----
 const CALLS=[
  {c:'Mel (MOTI)',q:"Why is the barricade at 2+400 facing the wrong way?",a:["It's facing traffic, Mel. I'll send you the TMP page.","Which way is the right way?","Harsh set it up."]},
- {c:'Andy Smith',q:"Is the bridge done?",a:["Girders are set. Deck pour Thursday if the weather holds.","Define done.","Fredis is in Calgary."]},
+ {c:'Andy Smith',q:"Is the bridge done?",a:["Girders are set. Deck pour Thursday if the weather holds.","Define done.","Joe is in Calgary."]},
  {c:'Lenny',q:"Rock trucks are lined up at the pit. Where's the excavator operator?",a:["Coming from the fuel truck. Two minutes.","Ask Louie.","Which pit?"]},
  {c:'Louie',q:"The grader blade is in the creek. Do you want the long version?",a:["No. Get the dozer and pull it out before Tanya sees.","Yes. Tell me everything.","How is the blade in the creek?"]},
  {c:'Tanya',q:"I need the hot work permit for the slash burn. Now.",a:["It's on the board in the trailer, signed this morning.","We don't do hot work.","Adam has it. Probably."]},
  {c:'Harsh',q:"Mel wants compaction tests. Do I send the ones from the Surrey job?",a:["No. Send the ones from this job. The real ones.","Sure, he won't notice.","Which ones are real?"]},
  {c:'Adam',q:"The labour crew found a toad. Do we stop?",a:["Yes. Call the environmental monitor and flag the spot.","No. Toads are fine.","Move the toad."]},
- {c:'Fredis',q:"...",a:["Understood. Crane's back at seven.","Fredis? Hello?","Say something."]},
- {c:'Concrete plant',q:"Your 40 cubes are batched. Where do you want them?",a:["Abutment two, Fredis is there. Chute from the east side.","Anywhere is fine.","We ordered 400."]},
+ {c:'Joe',q:"Girders are on the hook and the crane's ready. Are we lifting?",a:["Yes. Tanya's checked the rigging. Go.","Wait for Andy.","Which girders?"]},
+ {c:'Concrete plant',q:"Your 40 cubes are batched. Where do you want them?",a:["Abutment two, Joe is there. Chute from the east side.","Anywhere is fine.","We ordered 400."]},
  {c:'Mel (MOTI)',q:"Your shoulders are 50 millimetres narrow.",a:["They're not. Meet me at 3+100 with a tape.","Okay, we'll add 50.","Harsh measured them."]},
  {c:'Andy Smith',q:"Why did the burn rate go up this week?",a:["Overtime on the abutment pour. Normal Monday.","It didn't.","Ask accounting."]},
  {c:'Girder trucker',q:"I've got 22 metres of girder and Highway 1 is closed. Where do I go?",a:["Wait at the Husky. I'll call when the gate opens.","Try the back road.","Denny's."]},
- {c:'Lenny',q:"Survey stake at 2+060 is gone. Marmot or Fredis?",a:["Marmot. Get Louie to re-shoot it from control.","Fredis.","Does it matter?"]},
+ {c:'Lenny',q:"Survey stake at 2+060 is gone. Marmot or a truck?",a:["Marmot. Get Louie to re-shoot it from control.","A truck.","Does it matter?"]},
  {c:'Tanya',q:"Who is on the D8 without a seatbelt?",a:["Louie. I'll talk to him now.","Nobody.","Define seatbelt."]},
  {c:'Harsh',q:"ATP package is due at noon. It's 11:40. I have most of it.",a:["Bring what you have. Real sheets only. I'll sign.","Send it anyway.","Which package?"]},
  {c:'Mel (MOTI)',q:"Where are the animals?",a:["The crossing opened yesterday. Give the moose a week.","There are no animals.","Ask Adam."]},
@@ -636,8 +626,8 @@ const CALLS=[
  {c:'Tanya',q:"Someone's hi-vis is more of a beige.",a:["New vests are in the trailer. Handing them out now.","Beige is close enough.","It's Adam's."]},
  {c:'Mel (MOTI)',q:"Your daily report says the bridge is complete.",a:["That's Harsh's draft. The real one is coming now.","It is complete.","Which bridge?"]},
  {c:'Rock trucker',q:"Where's the scale?",a:["No scale. Load count at the pit, I sign the tickets.","Golden.","Ask Lenny."]},
- {c:'Andy Smith',q:"Why is Fredis in Calgary again?",a:["Back tomorrow. The abutments are perfect.","I don't know.","Why is anyone anywhere?"]},
- {c:'Adam',q:"Culvert sections are here. Crane or excavator?",a:["Excavator with chains. Tanya checks the rigging first.","Crane. Fredis has it.","Roll them in."]},
+ {c:'Andy Smith',q:"Where's Joe?",a:["Calgary until Thursday. The abutments are ready.","I don't know.","Why is anyone anywhere?"]},
+ {c:'Adam',q:"Culvert sections are here. Crane or excavator?",a:["Excavator with chains. Tanya checks the rigging first.","Crane. Joe has it.","Roll them in."]},
  {c:'Louie',q:"I welded the gate shut. With the trucks inside.",a:["Cut it open. Grinder's in the pickup. Say nothing to Tanya.","Why?","Leave it, it's Friday."]},
  {c:'Harsh',q:"Should the QA package be 400 pages or 40?",a:["40. Each page different.","400. More is better.","One page, 400 times."]},
  {c:'Mel (MOTI)',q:"I'm coming at two to check the grade.",a:["Louie's on it. Crossfall will be two percent.","Come at three.","Bring your own tape."]},
@@ -721,7 +711,7 @@ const MG_INTRO={phone:"SCOTT'S PHONE.  Scott: 'Hundred calls since six. You take
  pump:"ADAM'S DEWATERING.  Adam: 'Culvert sections are here, trench is wet, pump's a bit temperamental.'\nTAP (or any key) to work the pump handle and keep the water below the yellow bed line so the crew can place. Six sections. Rain comes in bursts. Stop tapping for two seconds and the pump loses prime: three taps to get it back. Fill the trench to the top and it floods.",
  paper:"HARSH'S ATP PACKAGE.  Harsh: 'The ATP package is due at noon. I have... most of it.' It is 11:20.\nPapers land on the desk one at a time. Real cut sheets go OUT to Mel (tap the right side, or RIGHT arrow). Harsh's nonsense goes in the SHREDDER (tap the left side, or LEFT arrow). Three pieces of nonsense reach Mel and the ATP is denied. Thirty seconds.",
  blast:"BLAST THE ROCK CUT.  Lenny: 'Holes are drilled. Powder truck's here. You're loading.'\nThe charge in each hole rises and falls. TAP (or SPACE) to lock it inside the green band. Too light leaves toe for the hoe ram. Too heavy is flyrock, and the pickup is parked right there. Eight holes, then Tanya blows the horn.",
- pick:"SET THE GIRDERS.  Fredis is on the abutment. He has not spoken. He will not speak.\nThe girder swings on the hook. TAP (or SPACE) to lower it, and it keeps swinging on the way down. Land both ends on the green seats. Three girders. Two in the creek and Fredis leaves for the airport.",
+ pick:"SET THE GIRDERS.  Joe is on the abutment, watching the seats.\nThe girder swings on the hook. TAP (or SPACE) to lower it, and it keeps swinging on the way down. Land both ends on the green seats. Three girders. Two in the creek and Tanya shuts down the lift.",
  load:"LOAD THE ROCK TRUCKS.  Lenny: 'The pit's backed up. Get in the excavator.'\nThe bucket swings from the pile to the truck. TAP (or SPACE) to dump when the bucket is over the box, when the bar turns green. Six buckets fills a truck. Spill four and Tanya shuts you down. Thirty seconds.",
  grade:"CUT THE GRADE.  Lenny: 'Grade's yours. Don't embarrass me in front of Mel.'\nThe grader drives itself. You control the blade: drag up and down on the screen (or UP/DOWN keys). Shave the ground down to the yellow string line. High spots are red, overcuts are orange, and Mel counts both."};
 
@@ -741,7 +731,7 @@ function healthWord(h){return h>75?'Good':h>50?'Fair':h>25?'Poor':'Very poor';}
 
 // ---------------- screens ----------------
 const DRAW={
- gate(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],fredisAway:0},t);
+ gate(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],joeAway:0},t);
   ctx.save();txt('SELKIRK TRAIL',646,126,150,'#000','center');txt('SELKIRK TRAIL',640,120,150,'#ffd400','center');ctx.restore();
   box();txt('This site is for the Selkirk crew only.',640,785,36,'#fff','center');txt(S.gateMsg||'Ask whoever sent you the link for the access code.',640,835,30,'#ffd400','center');txt(TOUCH?'Tap to enter the code.':'Press ENTER to enter the code.',640,905,30,'#bdbdbd','center');},
  mgIntro(t){const m=S.mg;MG_DRAW[m.type](t);boxText(MG_INTRO[m.type],TOUCH?'Tap to start.':'Press ENTER to start.');},
@@ -749,21 +739,21 @@ const DRAW={
  mgPump(t){drawMGPump(t);if(S.mg){box();txt(TOUCH?'TAP TAP TAP to pump. Keep the water under the yellow line.':'Mash SPACE to pump. Keep the water under the yellow line.',640,830,34,'#fff','center');}},
  mgPaper(t){drawMGPaper(t);if(S.mg){box();ctx.strokeStyle='#ff6060';ctx.lineWidth=4;ctx.strokeRect(80,790,500,110);ctx.strokeStyle='#60ff90';ctx.strokeRect(700,790,500,110);txt('SHRED',330,812,60,'#ff6060','center');txt('SUBMIT TO MEL',950,812,60,'#60ff90','center');txt(TOUCH?'tap the left side':'LEFT arrow',330,872,22,'#bdbdbd','center');txt(TOUCH?'tap the right side':'RIGHT arrow or ENTER',950,872,22,'#bdbdbd','center');HIT.push({x0:0,x1:640,y0:0,y1:960,key:'shred'});HIT.push({x0:640,x1:1280,y0:0,y1:960,key:'submit'});}},
  mgBlast(t){drawMGBlast(t);if(S.mg){box();txt(S.mg.phase==='play'?(TOUCH?'TAP to lock the charge when it is in the green band.':'SPACE to lock the charge when it is in the green band.'):'Stand back.',640,830,34,'#fff','center');}},
- mgPick(t){drawMGPick(t);if(S.mg){box();txt(TOUCH?'TAP to lower. Both ends on the green seats. Fredis is watching.':'SPACE to lower. Both ends on the green seats. Fredis is watching.',640,830,34,'#fff','center');}},
- mgMenu(t){drawScene(viewFromState(),t);hud();boxMenu('',["Lenny: load the rock trucks (excavator)","Tanya: blast the rock cut (powder)","Fredis: set the girders (crane)","Louie: cut the grade (grader)","Harsh: the ATP package (paperwork)","Scott: the phone (100 calls)","Adam: dewatering (culvert trench)",'Back'],S.sel,'');},
+ mgPick(t){drawMGPick(t);if(S.mg){box();txt(TOUCH?'TAP to lower. Both ends on the green seats. Joe is watching.':'SPACE to lower. Both ends on the green seats. Joe is watching.',640,830,34,'#fff','center');}},
+ mgMenu(t){drawScene(viewFromState(),t);hud();boxMenu('',["Lenny: load the rock trucks (excavator)","Tanya: blast the rock cut (powder)","Joe: set the girders (crane)","Louie: cut the grade (grader)","Harsh: the ATP package (paperwork)","Scott: the phone (100 calls)","Adam: dewatering (culvert trench)",'Back'],S.sel,'');},
  mgLoad(t){drawMGLoad(t);if(S.mg){box();txt(TOUCH?'TAP to dump the bucket when the bar over the truck is green.':'SPACE or ENTER to dump the bucket when the bar over the truck is green.',640,830,34,'#fff','center');}},
  mgGrade(t){drawMGGrade(t);if(S.mg){box();txt(TOUCH?'Hold and drag up or down to move the blade.':'Hold UP or DOWN to move the blade.',640,830,34,'#fff','center');}},
- title(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],fredisAway:0},t);
+ title(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],joeAway:0},t);
   ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=0;txt('SELKIRK TRAIL',646,126,150,'#000','center');txt('SELKIRK TRAIL',640,120,150,'#ffd400','center');ctx.restore();
   txt('A Golden, BC construction tragedy in six kilometres',640,262,40,'#fff','center');
-  boxMenu('',['Start a new project','Learn about the trail','Look at the Top Ten (there is no Top Ten, Andy deleted it)'],S.sel,TOUCH?'Tap to select':'ENTER to select');},
+  boxMenu('',['Start a new project','Just play the mini-games','Learn about the trail','Look at the Top Ten (there is no Top Ten, Andy deleted it)'],S.sel,TOUCH?'Tap to select':'ENTER to select');},
  intro(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);boxText(INTRO[S.page],HINT);},
- about(t){drawScene({km:6,night:true,weather:'Clear',trucks:2,dozers:1,crane:0,party:PARTY_DEF,graves:[],moving:true,extras:[],fredisAway:0},t);boxText(ABOUT[S.page],HINT);},
+ about(t){drawScene({km:6,night:true,weather:'Clear',trucks:2,dozers:1,crane:0,party:PARTY_DEF,graves:[],moving:true,extras:[],joeAway:0},t);boxText(ABOUT[S.page],HINT);},
  name(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);box();txt('What is your name, boss?',640,785,36,'#fff','center');txt(S.name+(Math.floor(t*2)%2?'_':' '),640,835,44,'#ffd400','center');txt(TOUCH?'Tap to type a name.':'Type a name and press ENTER.',640,905,30,'#bdbdbd','center');},
  role(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);
   boxMenu('Many roles have fallen on the Selkirk Trail. What is yours?',ROLES.map(r=>r.name+'  -  '+r.blurb),S.sel,'');},
  crew(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);box();
-  txt(`${S.name}, ${S.role.name}. Your crew:`,640,772,32,'#fff','center');PARTY_DEF.forEach((p,i)=>txt(`${p.name}  -  ${p.role}`,i<4?340:940,808+(i%4)*26,26,'#ffd400','center'));txt(TOUCH?'Tap to go to the yard.':'Press ENTER to go to the yard.',640,918,26,'#bdbdbd','center');},
+  txt(`${S.name}, ${S.role.name}. Your crew:`,640,772,32,'#fff','center');PARTY_DEF.forEach((p,i)=>txt(p.role?`${p.name}  -  ${p.role}`:p.name,i<4?340:940,808+(i%4)*26,26,'#ffd400','center'));txt(TOUCH?'Tap to go to the yard.':'Press ENTER to go to the yard.',640,918,26,'#bdbdbd','center');},
  store(t){drawScene({km:0,night:false,weather:'Clear',trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);
   ctx.fillStyle='rgba(0,0,0,0.82)';ctx.fillRect(60,30,1160,690);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(60,30,1160,690);
   txt('FINNING CAT RENTAL  -  GOLDEN YARD',640,48,44,'#ffd400','center');txt(`Allowance remaining: ${fmtFull(S.cash)}`,640,98,32,'#fff','center');
@@ -771,17 +761,17 @@ const DRAW={
    ctx.strokeStyle=on?'#ffd400':'#888';ctx.lineWidth=3;ctx.strokeRect(1040,y-2,50,38);ctx.strokeRect(1120,y-2,50,38);txt('-',1065,y-4,40,on?'#ffd400':'#bdbdbd','center');txt('+',1145,y-4,40,on?'#ffd400':'#bdbdbd','center');
    HIT.push({x0:80,x1:1030,y0:y-4,y1:y+40,key:'row:'+i});HIT.push({x0:1036,x1:1094,y0:y-6,y1:y+40,key:'minus:'+i});HIT.push({x0:1116,x1:1174,y0:y-6,y1:y+40,key:'plus:'+i});y+=44;});
   const on=S.sel===STORE.length;txt((on?'> ':'  ')+'Head out to site',100,y+10,38,on?'#ffd400':'#fff');HIT.push({x0:80,x1:700,y0:y+4,y1:y+50,key:'go'});
-  txt("Lenny: 'You'll want a dozer, four or five rock trucks, a grader, and the crane for Fredis. And coffee. Mostly coffee.'",640,y+70,26,'#bdbdbd','center');
+  txt("Lenny: 'You'll want a dozer, four or five rock trucks, a grader, and the crane for the bridge. And coffee. Mostly coffee.'",640,y+70,26,'#bdbdbd','center');
   txt(TOUCH?'Tap + to buy, - to return, then Head out to site':'UP/DOWN select   LEFT/RIGHT buy or return   ENTER when done',640,y+104,26,'#bdbdbd','center');
   box();txt(S.storeMsg||'Everything is on EllisDon\'s account. Andy will see the invoice.',640,830,32,'#fff','center');},
  travel(t){drawScene(viewFromState(),t);hud();box();
   txt(S.moving?'Travelling the Selkirk Trail...':'Paused.',640,790,36,'#fff','center');txt(`Pace: ${PACES[S.pace]}   Coffee: ${RATIONS[S.ration]}`,640,840,28,'#bdbdbd','center');txt(TOUCH?'Tap for the site menu.':'Press ENTER for the site menu.',640,900,30,'#bdbdbd','center');},
- menu(t){drawScene(viewFromState(),t);hud();boxMenu('',['Continue on the trail','Check crew and supplies',`Change pace (${PACES[S.pace]})`,`Change coffee rations (${RATIONS[S.ration]})`,'Rest for a week','Call Andy','Talk to Tanya','Talk to Fredis','Mini-games (a week of work each)'],S.sel,'');},
+ menu(t){drawScene(viewFromState(),t);hud();boxMenu('',['Continue on the trail','Check crew and supplies',`Change pace (${PACES[S.pace]})`,`Change coffee rations (${RATIONS[S.ration]})`,'Rest for a week','Call Andy','Talk to Tanya','Talk to Joe','Mini-games (a week of work each)'],S.sel,'');},
  pace(t){drawScene(viewFromState(),t);hud();boxMenu('Set the pace:',PACES.map((p,i)=>p+['  -  slow, safe, Mel approves','  -  faster, crew tires, burn rate up','  -  fastest, crew breaks, Andy loves it'][i]),S.sel,'');},
  ration(t){drawScene(viewFromState(),t);hud();boxMenu('Set the coffee rations:',RATIONS.map((p,i)=>p+['  -  14 cups/week each, crew thrives','  -  7 cups/week each','  -  3 cups/week each, morale dies'][i]),S.sel,'');},
  status(t){drawScene(viewFromState(),t);ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(60,30,1160,690);ctx.strokeStyle='#fff';ctx.lineWidth=4;ctx.strokeRect(60,30,1160,690);
   txt(`${S.name}  -  ${S.role.name}  -  Week ${S.week}`,640,48,40,'#ffd400','center');let y=110;
-  for(const p of S.party){let s=p.alive?healthWord(p.health)+(p.cond?'  ('+p.cond+')':''):(p.gone==='Andy'?'Killed by Andy':p.name==='Fredis'?'In Calgary. Permanently.':'Quit for the ski hill');if(p.alive&&p.name==='Fredis')s=(S.fredisAway>0?'In Calgary (angry)':'On site (angry)')+(p.cond?'  ('+p.cond+')':'');txt(p.name+'  -  '+p.role,100,y,34,p.alive?'#fff':'#777');txt(s,760,y,34,p.alive?(p.health>50?'#8f8':'#f88'):'#777');y+=38;}
+  for(const p of S.party){let s=p.alive?healthWord(p.health)+(p.cond?'  ('+p.cond+')':''):(p.gone==='Andy'?'Killed by Andy':p.name==='Joe'?'Took a job in Calgary':'Quit for the ski hill');if(p.alive&&p.name==='Joe')s=(S.joeAway>0?'In Calgary':healthWord(p.health))+(p.cond?'  ('+p.cond+')':'');txt(p.role?p.name+'  -  '+p.role:p.name,100,y,34,p.alive?'#fff':'#777');txt(s,760,y,34,p.alive?(p.health>50?'#8f8':'#f88'):'#777');y+=38;}
   y+=20;const inv=[`Rock trucks: ${S.trucks}`,`D8 dozers: ${S.dozers}`,`Graders: ${S.graders}`,`Crane: ${S.crane?'yes':'NO'}`,`Diesel: ${S.fuel.toLocaleString()} L`,`Coffee: ${S.coffee} cups`,`Hi-vis vests: ${S.vests}`,`Spare tracks: ${S.tracks}`];
   inv.forEach((s,i)=>txt(s,100+(i%2)*560,y+Math.floor(i/2)*38,32,'#fff'));y+=170;
   txt(`EllisDon loss so far: ${fmtFull(S.loss)}   (target: less than $45,000,000, ha)`,640,y,32,'#ffd400','center');txt(`Progress: km ${S.km.toFixed(2)} of 6.  Fired by Andy: ${S.fired}.  Quit: ${S.quit}.`,640,y+40,32,'#fff','center');
@@ -816,10 +806,10 @@ const KEY={
  mgPump(k){if(k.length===1||k==='Enter'||k.startsWith('Arrow'))pumpStroke();},
  mgPaper(k){if(k==='ArrowLeft'||k==='a'||k==='shred')handleDoc('shred');else if(k==='ArrowRight'||k==='d'||k==='Enter'||k===' '||k==='submit')handleDoc('submit');},
  mgPick(k){if(k==='Enter'||k===' ')startLower();},
- mgMenu(k){const i=menuKey(k,8);if(i<0)return;const need=[['load',S.trucks>0,"No rock trucks to load. Lenny laughs for a long time."],['blast',true,''],['pick',S.crane>0,"No crane. Fredis looks at the girders, then at you, then at his truck."],['grade',S.graders>0,"No grader. Louie offers to 'eyeball it' with the dozer. Mel would notice."],['paper',true,''],['phone',true,''],['pump',true,'']];if(i===7){S.screen='menu';S.sel=0;return;}const [ty,ok,msg]=need[i];if(ok)startMG(ty);else{S.ret='menu';show({t:msg});}},
+ mgMenu(k){const i=menuKey(k,8);if(i<0)return;const need=[['load',S.trucks>0,"No rock trucks to load. Lenny laughs for a long time."],['blast',true,''],['pick',S.crane>0,"No crane. Joe looks at the girders, then at you."],['grade',S.graders>0,"No grader. Louie offers to 'eyeball it' with the dozer. Mel would notice."],['paper',true,''],['phone',true,''],['pump',true,'']];if(i===7){S.screen=S.arcade?'title':'menu';S.sel=0;return;}const [ty,ok,msg]=need[i];if(ok)startMG(ty);else{S.ret='menu';show({t:msg});}},
  mgLoad(k){if(k==='Enter'||k===' ')dumpBucket();},
  mgGrade(k){},
- title(k){const i=menuKey(k,3);if(i===0){const nm=S.name;newGame();S.name=nm;S.screen='intro';S.page=0;}else if(i===1){S.screen='about';S.page=0;}else if(i===2){show({t:"There is no Top Ten. Andy deleted it after someone put Mel in the number one spot."});S.ret='title';}},
+ title(k){const i=menuKey(k,4);if(i===0){const nm=S.name;newGame();S.name=nm;S.screen='intro';S.page=0;}else if(i===1){const nm=S.name;newGame();S.name=nm||'Boss';Object.assign(S,{role:ROLES[0],trucks:4,dozers:1,graders:1,crane:1,fuel:60000,coffee:1200,km:2.5,msIndex:2,week:20,arcade:true,screen:'mgMenu',sel:0});}else if(i===2){S.screen='about';S.page=0;}else if(i===3){show({t:"There is no Top Ten. Andy deleted it after someone put Mel in the number one spot."});S.ret='title';}},
  intro(k){if(k==='Enter'||k===' '){if(++S.page>=INTRO.length){S.screen='name';}}},
  about(k){if(k==='Enter'||k===' '){if(++S.page>=ABOUT.length){S.screen='title';S.sel=0;}}},
  name(k){if(k==='Enter'){if(!S.name.trim())S.name='Boss';S.screen='role';S.sel=0;}else if(k==='Backspace')S.name=S.name.slice(0,-1);else if(k.length===1&&/[a-zA-Z0-9 .'-]/.test(k)&&S.name.length<14)S.name+=k;},
@@ -834,7 +824,7 @@ const KEY={
   else if(k==='Enter'){const it=STORE[S.sel];if(S.cash>=it.price&&!(it.max&&S[it.key]>=it.max)){S.cash-=it.price;S[it.key]+=it.step;S.storeMsg=`Bought ${it.name}.`;}}},
  travel(k){if(k==='Enter'||k===' '||k==='Escape'){S.moving=false;S.screen='menu';S.sel=0;}},
  menu(k){const i=menuKey(k,9);if(i===8){S.screen='mgMenu';S.sel=0;return;}if(i===0){S.screen='travel';S.moving=true;}else if(i===1)S.screen='status';else if(i===2){S.screen='pace';S.sel=S.pace;}else if(i===3){S.screen='ration';S.sel=S.ration;}
-  else if(i===7){S.ret='menu';if(!fredisAlive())show({t:"Fredis is gone. His hard hat is still on the hook. Nobody will touch it."});else if(!fredisHere())show({t:"Fredis is in Calgary. Nobody knows why. Nobody will ask."});else show({t:rnd(FREDIS_TALK)});}
+  else if(i===7){S.ret='menu';if(!joeAlive())show({t:"Joe took the Calgary job. His hard hat is still on the hook."});else if(!joeHere())show({t:"Joe is in Calgary for a few days."});else show({t:rnd(JOE_TALK)});}
   else if(i===4){S.week++;S.loss+=burn();for(const p of alive()){p.health=Math.min(100,p.health+15);p.cond=null;}S.ret='menu';show({t:rnd(["The crew rests for a week. Andy notices. Andy always notices.","A week off. Louie goes fishing. Scott goes to Calgary. Lenny reads the spec. Nobody knows why.","Rest week. Tanya holds an optional safety meeting. Attendance is mandatory."])});}
   else if(i===5){for(const p of alive())p.health=Math.max(1,p.health-2);S.ret='menu';show({t:rnd(ANDY_CALLS)});}
   else if(i===6){const sick=alive().filter(p=>p.cond);S.week++;S.loss+=burn();if(sick.length){for(const p of sick)p.cond=null;S.ret='menu';show({t:`Tanya runs a wellness toolbox talk. It lasts a week. ${sick.map(p=>p.name).join(' and ')} feel${sick.length>1?'':'s'} better. Everyone else feels lectured.`});}else{S.ret='menu';show({t:rnd(["Tanya: 'Where is your hi-vis?' You are wearing it. She checks the tag anyway. One week passes.","Tanya shows you a 40-slide deck on ladder safety. There are still no ladders. One week passes."])});}}},
@@ -849,7 +839,7 @@ const KEY={
  win(k){if(k==='Enter'||k===' '){if(++S.page>=3)S.screen='summary';}},
  summary(k){if(k==='Enter'||k===' '){const nm=S.name;newGame();S.name=nm;S.screen='title';S.sel=0;}},
 };
-function finishMsg(){const r=S.ret||'travel';S.ret='travel';if(S.screen!=='msg')return;S.screen=r;if(r==='travel')S.moving=true;if(r==='menu'||r==='title'||r==='milestone')S.sel=0;}
+function finishMsg(){const r=S.ret||'travel';S.ret='travel';if(S.screen!=='msg')return;S.screen=r;if(r==='travel')S.moving=true;if(r==='menu'||r==='title'||r==='milestone'||r==='mgMenu')S.sel=0;}
 
 // ---------------- loop + input ----------------
 let last=0;
