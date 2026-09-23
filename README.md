@@ -5,7 +5,7 @@ Twelve kilometres of highway, one bridge, one multiplate wildlife crossing, and 
 
 ## Play
 
-Open `index.html` in any browser (double-click it). No install, no build, no assets.
+Open `index.html` in any browser (double-click it). No install, no build. The 16-bit art lives in `gfx/` (sprites as ASCII grids, procedural terrain and structures, one renderer per mini-game scene); index.html loads them with plain script tags.
 Internet is only needed for the pixel font; without it the game falls back to Courier New.
 
 Keys: ENTER to continue, number keys or arrow keys to choose, LEFT/RIGHT to buy or return in the yard.
@@ -57,3 +57,13 @@ index.html (search for GATE=) with the output of:
 
 Live on GitHub Pages: https://lupulbraydon-ops.github.io/selkirk-trail/  (repo lupulbraydon-ops/selkirk-trail, branch main, root).
 To update: edit index.html, then `git add -A && git commit -m "..." && git push`. Pages rebuilds in about a minute.
+
+## Graphics (16-bit)
+
+Since 2026-09-23 the game renders in a "16-bit" style: the site scene is a 640x372 grid at PX=2 and the mini-games 320x186 at PX=4.
+- `gfx/blit16.js`: sprite blitter (pre-renders each sprite once to an offscreen canvas).
+- `gfx/sprites/*.js`: 58 sprites as ASCII row grids with per-sprite palettes (format and style guide in `gfx/BRIEF.md`). Validate with `node gfx/validate.js` (PREVIEW=1 prints them).
+- `gfx/terrain16.js`, `gfx/structures16.js`: procedural sky/mountains/ground/creek/road and abutments/girders/multiplate/crane boom, baked once per state.
+- `gfx/scenes/*16.js`: one pure renderer per mini-game (renderMGLoad16 etc.); game logic stays in index.html.
+- `build-artifact.js` inlines all of these into one file for the claude.ai Artifact.
+The 10-bit look is kept locally in `v8/` (gitignored); the 8-bit original is the previous commit of index.html.

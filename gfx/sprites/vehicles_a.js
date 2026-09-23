@@ -1,0 +1,178 @@
+// v16/sprites/vehicles_a.js — pickup, porta-potty, barricade, cone, tombstone. Plain script, no modules.
+// All anchors are [0, h]: bottom-left of the ground contact sits on the ground line; row h-1 is the 1px ink ground shadow.
+var SPR16 = window.SPR16 = window.SPR16 || {};
+
+// Crew-cab pickup facing RIGHT (cab on the right, box on the left). Use opts.flip for the left-facing site truck.
+// ROLE KEYS the renderer may override: B body highlight/top surfaces, b body base (sides), d body shade (lower panels,
+// door lines, fender arches). Default is the white truck; Joe's truck overrides B/b/d to red hi/base/shade.
+// Fixed keys: k ink, G/g/s glass hi/base/shade, W specular, T/t tire + tire highlight, H/h hub + hub highlight,
+// C/c chrome bumpers + grille, A/a amber light bar, L headlight lamp, R tail light, M/m mud spatter.
+// Wheels: rear x5..16, front x46..57, rows 17..28. Light bar x31..47 rows 0..2. Mirror at x47..49 rows 8..10.
+SPR16.pickup = {
+  w: 64, h: 30,
+  anchor: [0, 30],
+  pal: { B:'#ffffff', b:'#d0d4dc', d:'#9aa0ac', k:'#141018', G:'#d8f0ff', g:'#9fd8ff', s:'#5a9ad0', W:'#ffffff', T:'#1a1c1e', t:'#4a4a4a', H:'#555555', h:'#9a9a9a', C:'#c8ccd2', c:'#7c8289', A:'#ffb000', a:'#ffe466', L:'#fff2a8', R:'#b3001b', M:'#7a4a1c', m:'#5e3812' },
+  rows: [
+    "................................kkkkkkkkkkkkkkk.................",
+    "...............................kaAAkAaAkaAAkAaAk................",
+    "...............................kccccccccccccccck................",
+    ".............................kkkkkkkkkkkkkkkkkkkkk..............",
+    "............................kBBBBBBBBBBBBBBBBBBBBBk.............",
+    "............................kBbGGGGGGGBbGWGGGGGGGGGk............",
+    "............................kBbGggggggBbGggggggggggk............",
+    "............................kBbggggggsBbggggggggggggk...........",
+    "............................kBbgggggssBbgggggggkBbggk...........",
+    "............................kBbgssssssBbgggsssskbdsssk..........",
+    "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkBBBBBBBBBBBBBBBBBBBdBBBBBk.........",
+    "kBBBBBBBBBBBBBBBBBBBBBBBBBBBdbbbbbbbbbbbbbbbbbbbbbbbbbkkkkkkkk..",
+    "kRdbbbbbbbbbbbbbbbbbbbbbbbbbdbdbbbbbbbbdbbbbbbbbbbdbbbBBBBBBBBk.",
+    "kRdbbbbbbbbbbbbbbbbbbbbbbbbbdbdbbbbbddbdbbbbbbbddbdbbbbbbbbbbbdk",
+    "kRdbbbbbbbbbbbbbbbbbbbbbddbbdbdbbbbbbbbdbbbbbbbbbbdbbbbbCCCCdLWk",
+    "kbdbbbbbbbbbbbbbbbbbbbbbddbbdbdbbbbbbbbdbbbbbbbbbbdbbbbbccccdLLk",
+    "kbdbbbbbddddddbbbbbbbbbbbbbbdbdbbbbbbbbdbbbbbbbbbddddddbCCCCdLLk",
+    "kbdbbbbddkkkkddbbbbbbbbbbbbbdbdbbbbbbbbdbbbbbbbbddkkkkddbbbbbbbk",
+    "kbdbbbdkkttTTkkdbbbbbbbbbbbbdbdbbbbbbbbdbbbbbbbdkkttTTkkdbbbbbbk",
+    "kbdbbdkttTTTTTTkdbbbbbbbbbbbdbdbbbbbbbMdbbbbbbdkttTTTTTTkdbbbbbk",
+    "kCcdddktTTTTTTTkdddMddddmddddddddddMdddddddddddktTTTTTTTkdddCCCk",
+    "kccMdktTTThhhTTTkmMdddMmdddMdmddMmddddMdddmMddktTTThhhTTTkdMccck",
+    "kkkkkktTThHHHHTTkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkktTThHHHHTTkkkkkkk",
+    ".....kTTThHkHHTTk.............................kTTThHkHHTTk......",
+    ".....kTTThHHHHTTk.............................kTTThHHHHTTk......",
+    ".....kTTTTHHHTTTk.............................kTTTTHHHTTTk......",
+    "......kTTTTTTTTk...............................kTTTTTTTTk.......",
+    "......kkTTTTTTkk...............................kkTTTTTTkk.......",
+    "........kkkkkk...................................kkkkkk.........",
+    "......kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.......",
+  ],
+};
+
+// Blue porta-potty, front view with a sliver of the right side (q). Roof vent stack rows 0..2, white roof lip rows 3..6,
+// door x5..14 rows 10..34 with louvered vent (rows 12..16), sign plate, chrome handle (rows 22..23), grey skid base.
+SPR16.porta = {
+  w: 20, h: 40,
+  anchor: [0, 40],
+  pal: { P:'#2255ff', p:'#7aa0ff', q:'#1233b0', k:'#141018', W:'#ffffff', w:'#d0d4dc', d:'#9aa0ac', C:'#c8ccd2', c:'#7c8289', D:'#6f6f6f', M:'#7a4a1c' },
+  rows: [
+    "............kkkk....",
+    "...........kWwwwk...",
+    "............kwwk....",
+    ".kkkkkkkkkkkkkkkkkk.",
+    "kWwwwwwwwwwwwwwwwddk",
+    "kwwwwwwwwwwwwwwwwddk",
+    "kkddddddddddddddddkk",
+    ".kppppppppppppppqqk.",
+    ".kpPPPPPPPPPPPPPqqk.",
+    ".kpPPPPPPPPPPPPPqqk.",
+    ".kpPPqqqqqqqqqqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPqqqqqPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPqqqqqPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPqqqqqPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPWwwPPPqPqqk.",
+    ".kpPPqPPwwdPPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPCcPqPqqk.",
+    ".kpPPqPPPPPccPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPPPPqPqqk.",
+    ".kpPPqPPPPPPPMqPqqk.",
+    ".kpPMqPPMPPPPPqPqqk.",
+    ".kpPPqqqqqqqqqqPqqk.",
+    ".kpMPPPPPPPPPPMMqqk.",
+    ".kqqqqqqqqqqqqqqqqk.",
+    "kDDDDDDDDDDDDDDDDDDk",
+    "kkkkkkkkkkkkkkkkkkkk",
+    "...kkkkkkkkkkkkkk...",
+  ],
+};
+
+// Type-II barricade: two orange/white diagonal-striped panels on steel uprights, amber flasher on top (rows 0..2),
+// sandbags over the feet at both ends (rows 16..18). Override A/a per frame (e.g. to '#7c8289') to make the beacon flash.
+SPR16.barricade = {
+  w: 24, h: 20,
+  anchor: [0, 20],
+  pal: { k:'#141018', O:'#ff7a00', o:'#ffa040', S:'#b85400', W:'#ffffff', w:'#d0d4dc', d:'#9aa0ac', C:'#c8ccd2', c:'#7c8289', A:'#ffb000', a:'#ffe466', D:'#a06a30', M:'#7a4a1c', m:'#5e3812' },
+  rows: [
+    "...........kk...........",
+    "..........kaAk..........",
+    "..........kAAk..........",
+    "..kkkkkkkkkkkkkkkkkkkk..",
+    "..koooWWWoooWWWoooWWWk..",
+    "..kOOwwwOOOwwwOOOwwwOk..",
+    "..kOwwwOOOwwwOOOwwwOOk..",
+    "..kdddSSSdddSSSdddSSSk..",
+    "..kkkkkkkkkkkkkkkkkkkk..",
+    "..kC................ck..",
+    "..kC................ck..",
+    "..kkkkkkkkkkkkkkkkkkkk..",
+    "..koWWWoooWWWoooWWWook..",
+    "..kwwwOOOwwwOOOwwwOOOk..",
+    "..kwwOOOwwwOOOwwwOOOwk..",
+    "..kdSSSdddSSSdddSSSddk..",
+    ".kDMkkkkkkkkkkkkkkkkDMk.",
+    "kDMMmk............kDMMmk",
+    "kkkkkk............kkkkkk",
+    "...kkkkkkkkkkkkkkkkkk...",
+  ],
+};
+
+// Traffic cone with a white reflective band (rows 3..4) and a black rubber base (row 8).
+SPR16.cone = {
+  w: 8, h: 10,
+  anchor: [0, 10],
+  pal: { k:'#141018', O:'#ff7a00', o:'#ffa040', S:'#b85400', W:'#ffffff', w:'#d0d4dc', d:'#9aa0ac' },
+  rows: [
+    "...kk...",
+    "..koOk..",
+    "..koOk..",
+    ".kWwwdk.",
+    ".kWwwdk.",
+    ".koOOSk.",
+    ".koOOSk.",
+    "koOOOSSk",
+    "kkkkkkkk",
+    ".kkkkkk.",
+  ],
+};
+
+// Grey rounded headstone with an engraved cross (rows 5..11), plinth rows 16..18, grass tufts at both sides of the base.
+SPR16.tombstone = {
+  w: 16, h: 20,
+  anchor: [0, 20],
+  pal: { k:'#141018', L:'#dcdcdc', s:'#c4c4c4', d:'#9a9a9a', D:'#6f6f6f', g:'#3a9a2a', G:'#1d7a1d', h:'#166316' },
+  rows: [
+    ".....kkkkkk.....",
+    "....kLLsssdk....",
+    "...kLLssssddk...",
+    "..kLLsssssdddk..",
+    "..kLsssssssddk..",
+    "..kLsssDDssddk..",
+    "..kLsssDDssddk..",
+    "..kLsDDDDDDddk..",
+    "..kLsDDDDDDddk..",
+    "..kLsssDDssdDk..",
+    "..kLsssDDssdDk..",
+    "..kLsssDDssdDk..",
+    "..kLsssssssdDk..",
+    "..kLsssssssdDk..",
+    ".gkLssssssddDk.g",
+    "gGkLssssssddDkGg",
+    "gkLLssssssssddkg",
+    "GkLsssssssssdDkG",
+    "hGGkkkkkkkkkkGGh",
+    "..kkkkkkkkkkkk..",
+  ],
+};
+
+// Alias so either name works with blit16 (same object; blit16 caches by the name passed).
+SPR16.pickup_white = SPR16.pickup;
