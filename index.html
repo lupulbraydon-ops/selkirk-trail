@@ -58,7 +58,12 @@ function L(x1,y1,x2,y2,c,w){ctx.strokeStyle=c;ctx.lineWidth=(w||1)*PX;ctx.beginP
 // ---- v8 render helpers: bakes (static layers drawn once per PX), shading, dither, contact shadows ----
 const BAKE={};function bake(key,h,fn){const k=key+'@'+PX;if(BAKE[k])return BAKE[k];const c=document.createElement('canvas');c.width=SW*4;c.height=h*PX;const o=ctx;ctx=c.getContext('2d');try{fn();}finally{ctx=o;}BAKE[k]=c;return c;}
 function blit(c,y){ctx.drawImage(c,0,(y||0)*PX);}
-const SHM=new Map();function shade(c,f){if(c.length===4)c='#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3];if(c.length!==7)return c;f=f||.75;const k=c+f;if(SHM.has(k))return SHM.get(k);const n=parseInt(c.slice(1),16);const r=(n>>16)*f|0,g=((n>>8)&255)*f|0,b=(n&255)*f|0;const s='#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);SHM.set(k,s);return s;}
+// shade(c,f): darken c by f and shift its hue toward a cool blue-violet (#2a2a5a) as it darkens, keeping the darkened luminance,
+// so shadows read as cooler rather than "same colour, darker". Cached per (colour, factor).
+const SHM=new Map();function shade(c,f){if(c.length===4)c='#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3];if(c.length!==7)return c;f=f||.75;const k=c+f;if(SHM.has(k))return SHM.get(k);const n=parseInt(c.slice(1),16);let r=(n>>16)*f,g=((n>>8)&255)*f,b=(n&255)*f;
+ const w=Math.max(0,Math.min(.5,(1-f)*.6)),lum=.299*r+.587*g+.114*b;const tr=lum*.885,tg=lum*.885,tb=lum*1.9;   // #2a2a5a scaled to the darkened luminance
+ r=Math.max(0,Math.min(255,r+(tr-r)*w))|0;g=Math.max(0,Math.min(255,g+(tg-g)*w))|0;b=Math.max(0,Math.min(255,b+(tb-b)*w))|0;
+ const s='#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);SHM.set(k,s);return s;}
 function dith(y0,y1,a,b){const w=SW*4/PX;P(0,y0,w,y1-y0,a);if(y1-y0<3)return;for(let x=0;x<w;x++){if(x%4===0)P(x,y1-3,1,1,b);if(x%2===0)P(x,y1-2,1,1,b);if(x%4!==3)P(x,y1-1,1,1,b);}}
 function shadowRow(x,w,base){ctx.globalAlpha=.3;P(x,base,w,1,'#000');ctx.globalAlpha=1;}
 function beacon(x,y,on){P(x,y,1,1,on?C.amber:C.yellowDk);}
@@ -390,6 +395,21 @@ function crewKind(p,i){return p.clip?'person_clip':p.tie?'person_tie':(p.wave||i
 function puff16(x,y,t,seed){for(let k=0;k<3;k++){const ph=((t*0.9)+k/3+seed*0.37)%1;ctx.globalAlpha=0.7*(1-ph);const s=2+Math.floor(ph*3);P(x+Math.sin(ph*7+seed)*3-s/2,y-ph*18,s,s,ph<0.35?'#777777':'#bbbbbb');}ctx.globalAlpha=1;}
 function beam16(pts,col,a){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=a;ctx.fillStyle=col;ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x*PX,y*PX):ctx.moveTo(x*PX,y*PX));ctx.closePath();ctx.fill();ctx.restore();}
 function glow16(x,y,r0,r1,col,a){ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(x*PX,y*PX,r0*PX,x*PX,y*PX,r1*PX);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=a;ctx.fillStyle=g;ctx.fillRect((x-r1)*PX,(y-r1)*PX,2*r1*PX,2*r1*PX);ctx.restore();}
+// farPal(name, extra): sprite palette mixed 20% toward a cool grey-blue, for the grass row behind the road (atmospheric depth); day only, spal() handles night
+const FARP=new Map();function fmix(hex){const n=parseInt(hex.slice(1),16),r=n>>16,g=(n>>8)&255,b=n&255;const m=(v,k)=>Math.round(v+(k-v)*0.2);return '#'+((1<<24)|(m(r,0x7a)<<16)|(m(g,0x90)<<8)|m(b,0xb0)).toString(16).slice(1);}
+function farPal(name,extra){const k=name+'|'+(extra?JSON.stringify(extra):'');let o=FARP.get(k);if(o)return o;const spr=SPR16[name];o={};const src=Object.assign({},spr?spr.pal:{},extra||{});for(const key in src)o[key]=fmix(src[key]);FARP.set(k,o);return o;}
+// pool16: additive elliptical light pool on the ground under a headlight / work-light beam
+function pool16(x,y,rx,ry,col,a){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=a;ctx.translate(x*PX,y*PX);ctx.scale(1,ry/rx);const g=ctx.createRadialGradient(0,0,0,0,0,rx*PX);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.fillRect(-rx*PX,-rx*PX,2*rx*PX,2*rx*PX);ctx.restore();}
+// snow overlays (baked once per day/night): grass strip dusting (drawn under the trees) and caps on every upward-facing pixel of the trees and scenery (drawn over them)
+function hash16(x,y,s){let n=Math.imul(x|0,374761393)+Math.imul(y|0,668265263)+Math.imul((s|0)+1,1274126177);n=Math.imul(n^(n>>>13),1103515245);n^=n>>>16;return (n>>>0)/4294967296;}
+function snowGrass16(night){return bake('snowg16'+(night?'n':'d'),372,()=>{const W=night?nmix('#f2f5ff'):'#f2f5ff',Ws=night?nmix('#c9d4f0'):'#dfe6fa';
+ P(0,172,640,2,W);for(let x=0;x<640;x++){if(hash16(x,0,3)<.7)P(x,174,1,1,W);if(hash16(x,1,3)<.35)P(x,175,1,1,Ws);}
+ for(let y=176;y<199;y++){const d=.42*(1-(y-176)/23)+.04;for(let x=0;x<640;x+=2){const h=hash16(x,y,4);if(h<d*.55)P(x,y,2,1,W);else if(h<d)P(x,y,2,1,Ws);}}
+ for(let x=0;x<640;x++)if(hash16(x,9,5)<.3)P(x,200,1,1,Ws);});}
+function snowCaps16(night,TK){return bake('snowc16'+(night?'n':'d'),372,()=>{const W=night?nmix('#f2f5ff'):'#f2f5ff',Ws=night?nmix('#c9d4f0'):'#dfe6fa';
+ const cap=(k,x0,base)=>{const s=SPR16[k];if(!s)return;const y0=base-s.h;for(let y=0;y<s.h;y++){const r=s.rows[y],up=s.rows[y-1]||'';for(let x=0;x<s.w;x++){const c=r[x];if(c==='.'||c==='k'||c==='t'||c==='T')continue;if(y>0&&up[x]&&up[x]!=='.')continue;
+  const inner=x>0&&r[x-1]!=='.'&&x<s.w-1&&r[x+1]!=='.';if(inner)P(x0+x,y0+y,1,1,W);else if(r[x+1]==='.'){if((x+y)%2===0)P(x0+x,y0+y,1,1,Ws);}else P(x0+x,y0+y,1,1,hash16(x0+x,y,6)<.6?W:Ws);}}};
+ TREES.forEach((tr,i)=>cap(TK[i%TK.length],tr.x*2,(tr.y+8)*2));for(const [k,x,b] of SCENERY16)cap(k,x,b);});}
 const SCENERY16=[['stump',30,199],['bush',236,199],['rock_a',318,175],['bush',392,199],['rock_b',598,199],['stump',470,180],['bush',96,178]];
 function drawScene(v,t){
  const mv=!!v.moving;const ta=mv?t:0;NITE=!!v.night;const night=NITE;
@@ -398,6 +418,7 @@ function drawScene(v,t){
  PX=2;
  try{
  TERRAIN16.opts.clouds=false;   // clouds are drifting sprites here
+ const smoke=v.weather==='Smoke';TERRAIN16.opts.smoke=smoke&&!night;   // wildfire smoke: warm sky, far ridges lost in the haze (baked in terrain16)
  // ---- sky, clouds, birds, mountains
  drawSky16(night,t,'main');
  const clouds=[['cloud_c',40,18,3],['cloud_a',300,44,4],['cloud_b',520,30,5]];
@@ -408,10 +429,11 @@ function drawScene(v,t){
  drawGround16(night,st,'main');drawCreek16(night,t,st,'main');drawRoad16(st,'main');
  if(night){ctx.save();ctx.globalCompositeOperation='multiply';ctx.globalAlpha=.35;ctx.fillStyle=N16;ctx.fillRect(0,172*PX,640*PX,200*PX);if(st>=1)ctx.fillRect(0,128*PX,56*PX,44*PX);ctx.restore();}
  // ---- trees along the grass strip (seeded positions doubled), then bushes/rocks/stumps
- const TK=['tree_a','tree_b','tree_c'];
- if(v.weather==='Snow')P(0,172,640,1,'#ffffff');
- TREES.forEach((tr,i)=>{const k=TK[i%3];blit16(k,tr.x*2,(tr.y+8)*2,{pal:spal(k)});});
+ const TK=['tree_a','tree_d','tree_b','tree_e','tree_c'];   // tall d/e spruces mixed in so the forest reads taller than the crew
+ if(v.weather==='Snow')blit(snowGrass16(night),0);
+ TREES.forEach((tr,i)=>{const k=TK[i%TK.length];blit16(k,tr.x*2,(tr.y+8)*2,{pal:spal(k)});});
  for(const [k,x,b] of SCENERY16)blit16(k,x,b,{pal:spal(k)});
+ if(v.weather==='Snow')blit(snowCaps16(night,TK),0);
  // ---- creek structures by stage: 0 stakes, 1 formwork, 2+ concrete abutments + girders, 3+ multiplate with the bear, 5 paved deck
  if(st===0)stakes16(296,214);
  if(st===1){abutment16(216,208,20,46,1,night);abutment16(404,208,20,46,1,night);formworkPile16(8,188);}
@@ -424,14 +446,14 @@ function drawScene(v,t){
  v.graves.forEach((g,i)=>blit16('tombstone',566+(i%3)*16+(i>=3?8:0),i>=3?166:176,{pal:spal('tombstone')}));
  let dx=null;if(v.dozers>0){const ph=(ta*0.5)%1;dx=428+ph*20;const pile=8+ph*12;
   const dp=night?nmix(C.dirt3):C.dirt3,dh=night?nmix(C.dirtHi):C.dirtHi,dd=night?nmix(C.dirt2):C.dirt2;P(dx+58,188-pile,pile+6,pile,dp);P(dx+58,188-pile,pile+6,1,dh);P(dx+58+pile+3,188-pile+2,3,pile-2,dd);
-  blit16('dirt_pile',dx+58,188,{pal:spal('dirt_pile')});
-  blit16('dozer',dx,188,{pal:spal('dozer',{A:(night&&ta>0&&Math.sin(ta*6)>0)?'#ffb000':'#8a6a00'},night)});
+  blit16('dirt_pile',dx+58,188,{pal:spal('dirt_pile',farPal('dirt_pile'))});
+  blit16('dozer',dx,188,{pal:spal('dozer',farPal('dozer',{A:(night&&ta>0&&Math.sin(ta*6)>0)?'#ffb000':'#8a6a00'}),night)});
   if(mv)puff16(dx+37,188-42,t,0);}
  const fa=v.joeAway||0,fl=v.joeLeftAt||0,fr=v.joeRetAt||0;let fx=null;
  if(v.joeAlive!==false){
   if(fa>0){const d=t-fl;if(d<3.5)fx=250+d*40;}
   else{const d=t-fr;fx=(fr&&d<3.5)?Math.max(250,330-d*40):250;}
-  if(fx!==null&&fx<330)blit16('pickup',fx*2,188,{pal:spal('pickup',{B:'#e0334a',b:'#b3001b',d:'#6e0010'},night)});}
+  if(fx!==null&&fx<330)blit16('pickup',fx*2,188,{pal:spal('pickup',farPal('pickup',{B:'#e0334a',b:'#b3001b',d:'#6e0010'}),night)});}
  // ---- road row (base 200): the white pickup, the crane (or a girder stack), rock trucks, porta-potty, cones, barricade
  const flash=(mv&&Math.floor(t*4)%2)?'#fff2a8':'#ffb000';
  blit16('pickup',0,200,{pal:spal('pickup',{A:flash},night)});
@@ -454,23 +476,23 @@ function drawScene(v,t){
  blit16('cone',140,200,{pal:spal('cone')});blit16('cone',432,200,{pal:spal('cone')});
  if(st<5)blit16('barricade',220,200,{pal:spal('barricade',{A:night?(Math.sin(t*4)>0?'#ffb000':'#8a6a00'):'#ffd400'})});
  // ---- crew (base 200), then extras (Andy etc.)
- let i=0;for(const p of v.party){if(p.alive===false)continue;if(p.name==='Joe'&&fa>0)continue;const bob=(mv&&Math.floor(t*4+i)%2)?-2:0;const k=crewKind(p,i);blit16(k,132+i*13,200+bob,{pal:spal(k,crewPal16(p))});i++;}
- v.extras.forEach((e,j)=>{const k=crewKind(e,j+2);blit16(k,e.x*2,200,{pal:spal(k,crewPal16(e))});});
+ let i=0;for(const p of v.party){if(p.alive===false)continue;if(p.name==='Joe'&&fa>0)continue;const bob=mv?((Math.floor(t*4+i)%2)?-2:0):(Math.sin(t*(1.1+(i%3)*.25)+i*1.7)>.55?-1:0);const k=crewKind(p,i);blit16(k,132+i*13,200+bob,{pal:spal(k,crewPal16(p))});i++;}
+ v.extras.forEach((e,j)=>{const k=crewKind(e,j+2);const bob=mv?0:(Math.sin(t*(1.2+(j%2)*.3)+j*2.3+.9)>.55?-1:0);blit16(k,e.x*2,200+bob,{pal:spal(k,crewPal16(e))});});
  // ---- night: additive lights (crane tip work light, headlights, dozer lamp, barricade flasher, moon glow)
  if(night){
-  if(tipX!==null){beam16([[tipX+1,30],[tipX-90,212],[tipX+70,212]],'#fff1b8',.16);glow16(tipX+1,26,1,10,'#fff2a8',.5);}
-  beam16([[64,182],[150,172],[150,204]],'#ffe9a0',.16);glow16(63,184,1,5,'#fff2a8',.6);
-  if(fx!==null&&fx<330)beam16([[fx*2+64,170],[fx*2+150,160],[fx*2+150,192]],'#ffe9a0',.14);
-  if(dx!==null)beam16([[dx+46,150],[dx+110,140],[dx+110,190]],'#ffe9a0',.12);
-  if(truckX.length){ctx.save();ctx.beginPath();ctx.rect(420*PX,0,220*PX,372*PX);ctx.clip();for(const x of truckX){beam16([[x,184],[x-70,174],[x-70,204]],'#ffe9a0',.14);glow16(x+1,185,1,4,'#fff2a8',.6);}ctx.restore();}
+  if(tipX!==null){beam16([[tipX+1,30],[tipX-90,212],[tipX+70,212]],'#fff1b8',.16);glow16(tipX+1,26,1,10,'#fff2a8',.5);pool16(tipX-10,208,80,10,'#fff1b8',.22);}
+  beam16([[64,182],[150,172],[150,204]],'#ffe9a0',.16);glow16(63,184,1,5,'#fff2a8',.6);pool16(138,201,34,5,'#ffe9a0',.26);
+  if(fx!==null&&fx<330){beam16([[fx*2+64,170],[fx*2+150,160],[fx*2+150,192]],'#ffe9a0',.14);pool16(fx*2+140,188,28,4,'#ffe9a0',.2);}
+  if(dx!==null){beam16([[dx+46,150],[dx+110,140],[dx+110,190]],'#ffe9a0',.12);pool16(dx+104,187,26,4,'#ffe9a0',.18);}
+  if(truckX.length){ctx.save();ctx.beginPath();ctx.rect(420*PX,0,220*PX,372*PX);ctx.clip();for(const x of truckX){beam16([[x,184],[x-70,174],[x-70,204]],'#ffe9a0',.14);glow16(x+1,185,1,4,'#fff2a8',.6);pool16(x-58,201,30,5,'#ffe9a0',.22);}ctx.restore();}
   if(st<5&&Math.sin(t*4)>0)glow16(232,182,1,8,'#ffb000',.5);
   glow16(584,38,12,44,'#f3f0d8',.22);}
  // ---- weather
- if(v.weather==='Snow'){TREES.forEach((tr,i)=>{const s=SPR16[TK[i%3]];P(tr.x*2+Math.floor(s.w/2)-2,(tr.y+8)*2-s.h+3,4,1,'#ffffff');});
-  for(const f of FLAKES)for(let c=0;c<2;c++){const fx0=(f.x*2+c*320+t*16*f.v)%640,fy0=(f.y*2+c*186+t*50*f.v)%372;P(fx0,fy0,1,1,f.v>1?'#ffffff':C.snowSh);}}
+ if(v.weather==='Snow'){for(const f of FLAKES)for(let c=0;c<2;c++){const fx0=(f.x*2+c*320+t*16*f.v+Math.sin(t*1.3+f.y)*3)%640,fy0=(f.y*2+c*186+t*50*f.v)%372;P(fx0,fy0,2,2,f.v>1?'#ffffff':C.snowSh);}}
  if(v.weather==='Rain'||v.weather==='Sideways rain'){const sl=v.weather==='Rain'?2:8;for(const f of FLAKES)for(let c=0;c<2;c++){const rx=(f.x*2+c*320+t*80*f.v*sl/2)%640,ry=(f.y*2+c*186+t*240*f.v)%372;L(rx,ry,rx+sl,ry+6,'#9fc7ff',0.5);}}
- if(v.weather==='Smoke'){ctx.globalAlpha=.12;P(0,0,640,372,'#ff8a2a');ctx.globalAlpha=.25;for(let i=0;i<3;i++)P(((i*220+t*6)%(640+120))-60,144+i*8,100,6,'#d68a3c');ctx.globalAlpha=1;}
- }finally{PX=4;}
+ if(smoke){ctx.save();ctx.globalCompositeOperation='multiply';ctx.globalAlpha=night?.2:.3;ctx.fillStyle='#d2a878';ctx.fillRect(0,172*PX,640*PX,200*PX);ctx.restore();   // grey-orange desaturating wash over the ground
+  ctx.globalAlpha=night?.05:.1;P(0,0,640,372,'#e0a060');ctx.globalAlpha=.18;for(let i=0;i<4;i++){const sx=((i*190+t*(5+i))%(640+160))-80,sy=130+i*14+Math.sin(t*.4+i)*3;P(sx,sy,120,4,'#e8c8a0');P(sx+20,sy+4,80,3,'#e8c8a0');}ctx.globalAlpha=1;}
+ }finally{PX=4;TERRAIN16.opts.smoke=false;}   // smoke bakes are for the main scene only; the mini-games' pick-grid skies stay clear
 }
 function viewFromState(o){return Object.assign({km:S.km,night:S.pace===2,weather:S.weather,trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:S.party,graves:S.graves,moving:S.moving,extras:S.extras,joeAway:S.joeAway,joeLeftAt:S.joeLeftAt,joeRetAt:S.joeRetAt,joeAlive:joeAlive()},o||{});}
 

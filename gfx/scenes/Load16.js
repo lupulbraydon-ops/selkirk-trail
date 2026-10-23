@@ -107,31 +107,42 @@
     // bench top surface (edge-on), 104..108: lit crest, gravel fines
     b.r(0, BENCH_TOP, BENCH_R, 1, R[0]); b.r(0, BENCH_TOP + 1, BENCH_R, 2, R[1]); b.r(0, BENCH_TOP + 3, BENCH_R, 1, R[2]);
     speckle(b, 0, BENCH_R, BENCH_TOP + 1, 2, Gv[1], 0.14, 22); speckle(b, 0, BENCH_R, BENCH_TOP + 1, 3, Gv[2], 0.08, 23);
-    // presplit face 108..170
+    // rock face 108..170: calm solid tones (same family as the Blast face): a hi/base/shade ramp down the face, three wavy
+    // broken bedding planes with lit lips, a few offset vertical joints, sparse chips, three half-cast presplit holes
     b.r(0, FACE_TOP, BENCH_R, GROUND - FACE_TOP, R[2]);
-    ditherBand(b, 0, BENCH_R, 138, 14, R[3], 1); ditherBand(b, 0, BENCH_R, 152, 18, R[3], 2);
-    for (let x = 4, i = 0; x < BENCH_R - 4; x += 11 + Math.floor(hash(i, 0, 30) * 7), i++) for (let y = FACE_TOP; y < GROUND; y++) { const h = hash(x, y, 30); if (h < 0.7) b.px(x, y, R[1]); if (h > 0.55) b.px(x + 1, y, R[3]); if (h > 0.9) b.px(x + 2, y, R[4]); } // half-cast presplit holes, broken
-    for (const jy of [118, 131, 145, 158]) for (let x = 0; x < BENCH_R; x++) {                                                             // bedding joints
-      const w1 = hash(x >> 3, jy, 24), y = jy + (w1 < 0.3 ? -1 : w1 < 0.6 ? 0 : w1 < 0.85 ? 1 : 2); if (hash(x >> 2, jy, 36) < 0.12) continue; if (dith(x, y - 1, 2)) b.px(x, y - 1, R[3]); b.px(x, y, R[4]); if (dith(x, y + 1, 2)) b.px(x, y + 1, R[1]);
+    b.r(0, FACE_TOP, BENCH_R, 14, R[1]); ditherBand(b, 0, BENCH_R, FACE_TOP + 12, 4, R[2], 2);
+    b.r(0, 150, BENCH_R, 14, R[3]); ditherBand(b, 0, BENCH_R, 147, 4, R[3], 2); b.r(0, 164, BENCH_R, 6, R[4]); ditherBand(b, 0, BENCH_R, 162, 3, R[4], 2);
+    const planes = [124, 140, 156].map((y0, j) => x => y0 + Math.round(1.6 * Math.sin(x * 0.11 + j * 2) + 0.8 * Math.sin(x * 0.31 + j)));
+    planes.forEach((pl, j) => { for (let x = 0; x < BENCH_R; x++) { if (hash(x >> 3, j, 24) < 0.14) continue; const y = pl(x); b.px(x, y, j < 2 ? R[3] : R[4]); if (hash(x >> 2, j, 36) < 0.4) b.px(x, y - 1, j < 2 ? R[0] : R[1]); } });
+    for (let j = -1; j < planes.length; j++) {                                                                                     // vertical joints between planes, offset per course
+      for (let x = 6 + Math.floor(hash(j, 0, 30) * 12); x < BENCH_R - 6; x += 18 + Math.floor(hash(x, j, 30) * 14)) {
+        const y0 = j < 0 ? FACE_TOP + 2 : planes[j](x) + 1, y1 = j + 1 < planes.length ? planes[j + 1](x) : GROUND - 4, slant = hash(x, j, 31) < 0.3 ? -1 : hash(x, j, 31) > 0.7 ? 1 : 0; let xx = x;
+        for (let y = y0; y < y1; y++) { if ((y - y0) % 5 === 4) xx += slant; b.px(xx, y, R[3]); if (hash(xx, y, 32) < 0.35) b.px(xx + 1, y, R[1]); }
+      }
     }
-    speckle(b, 0, BENCH_R, FACE_TOP, GROUND - FACE_TOP, R[0], 0.025, 25); speckle(b, 0, BENCH_R, FACE_TOP, GROUND - FACE_TOP, R[3], 0.06, 26); speckle(b, 0, BENCH_R, FACE_TOP, GROUND - FACE_TOP, R[4], 0.02, 27);
+    for (const x of [22, 66, 102]) for (let y = FACE_TOP; y < GROUND - 2; y++) if (hash(x, y, 33) < 0.8) { b.px(x, y, R[3]); b.px(x + 1, y, R[0]); }   // half-cast holes
+    for (let y = FACE_TOP + 3; y < 162; y++) for (let x = 2; x < BENCH_R - 4; x++) if (hash(x, y, 25) < 0.014) { b.r(x, y, 2, 1, R[y < 150 ? 0 : 1]); b.r(x, y + 1, 2, 1, R[y < 150 ? 3 : 4]); }   // chips
+    speckle(b, 0, BENCH_R, FACE_TOP, GROUND - FACE_TOP, R[3], 0.02, 26);
     // right corner of the bench: shade side, partial dark outline
     b.r(BENCH_R - 3, FACE_TOP, 2, GROUND - FACE_TOP, R[3]); b.r(BENCH_R - 1, FACE_TOP, 1, GROUND - FACE_TOP, R[4]);
     b.r(BENCH_R - 2, BENCH_TOP, 2, 1, R[2]); b.px(BENCH_R - 1, BENCH_TOP + 1, R[3]); b.px(BENCH_R - 1, BENCH_TOP + 2, R[3]); b.px(BENCH_R - 1, BENCH_TOP + 3, R[4]);
     for (let x = 0; x < BENCH_R; x++) if (dith(x, GROUND - 1, 2)) b.px(x, GROUND - 1, R[4]);                                                // toe shadow
-    // muckpile: shot rock chunks in a brick pattern clipped to the profile, dark gaps, dirt fines, outline on the shade side
-    for (let x = 0; x <= 53; x++) {
-      const top = Math.round(pileTop(x));
-      for (let y = top; y < BENCH_TOP; y++) {
-        const cy = Math.floor((y - 58) / 3), cell = 4 + (hash(cy, 1, 33) < 0.5 ? 1 : 0), shift = Math.floor(hash(cy, 0, 33) * 5), cx = Math.floor((x + shift) / cell), u = (x + shift) % cell, v = (y - 58) % 3;
-        const tone = hash(cx, cy, 28), mergeR = hash(cx, cy, 34) < 0.3, mergeB = hash(cx, cy, 35) < 0.3;
-        const set = tone < 0.3 ? [R[0], R[1], R[2]] : tone < 0.85 ? [R[1], R[2], R[3]] : [R[2], R[3], R[4]];
-        let c = ((u === cell - 1 && !mergeR) || (v === 2 && !mergeB)) ? set[2] : v === 0 && u < cell - 1 ? set[0] : set[1];
-        const g = hash(x, y, 29); if (g < 0.06) c = R[4]; else if (g < 0.1) c = D.base;
-        if (y === top) c = x > 18 ? R[4] : R[0];
-        b.px(x, y, c);
-      }
+    // muckpile: a mound of shot rock, lit on the left, in shade on the right, loose chunks sitting in it, fines, outline on the shade side
+    const tops = []; for (let x = 0; x <= 53; x++) tops[x] = Math.round(pileTop(x));
+    const inside = (x, y) => x >= 0 && x <= 53 && y >= tops[x] && y < BENCH_TOP;
+    for (let x = 0; x <= 53; x++) for (let y = tops[x]; y < BENCH_TOP; y++) {
+      let c = x < 22 ? R[1] : x < 40 ? R[2] : (dith(x, y, 2) ? R[2] : R[3]);
+      const g = hash(x, y, 29); if (g < 0.04) c = R[4]; else if (g < 0.08) c = D.base; else if (g < 0.1) c = R[0];
+      b.px(x, y, c);
     }
+    for (let i = 0; i < 34; i++) {                                                                                                 // chunks
+      const cx = Math.floor(hash(i, 0, 34) * 52), cy = 60 + Math.floor(hash(i, 1, 34) * 44), cw = 3 + Math.floor(hash(i, 2, 34) * 4), chh = 2 + Math.floor(hash(i, 3, 34) * 2);
+      if (!inside(cx, cy) || !inside(cx + cw - 1, cy + chh - 1)) continue;
+      const lit = cx < 30;
+      for (let y = cy; y < cy + chh; y++) for (let x = cx; x < cx + cw; x++) b.px(x, y, y === cy ? (lit ? R[0] : R[1]) : (x === cx + cw - 1 || y === cy + chh - 1) ? R[3] : (lit ? R[1] : R[2]));
+      b.px(cx + cw - 1, cy + chh - 1, R[4]);
+    }
+    for (let x = 0; x <= 53; x++) b.px(x, tops[x], x > 18 ? R[4] : R[0]);
   }
 
   // ---------------- arm: 4-tone beams rasterised as pixel spans (light side first) ----------------
@@ -162,6 +173,7 @@
     beam(x1, y1, bx, by, 3, BARREL_T);
     P(Math.round(bx) - 1, Math.round(by) - 1, 2, 2, K.yel.deep);   // gland end cap
   }
+  const INKP = {}; function inkPal(name) { if (INKP[name] !== undefined) return INKP[name]; const sp = Wn.SPR16 && Wn.SPR16[name]; if (!sp) return (INKP[name] = null); const o = {}; for (const k in sp.pal) o[k] = K.ink; return (INKP[name] = o); }
   function upNormal(ax, ay, bx, by) { const dx = bx - ax, dy = by - ay, l = Math.hypot(dx, dy) || 1; let nx = -dy / l, ny = dx / l; if (ny > 0) { nx = -nx; ny = -ny; } return [nx, ny]; }
   function drawArm(m) {
     const s = +m.s || 0, [bx, by] = bucketPos2(s), [px, py] = PIVOT;
@@ -178,7 +190,9 @@
     const Dd = lerp(ex, ey, bx, by, 0.28), E = lerp(ex, ey, bx, by, 0.8); cyl(Dd[0] + vx * 2.5, Dd[1] + vy * 2.5, E[0] + vx * 2.5, E[1] + vy * 2.5);
     beam(E[0] + vx * 2.5, E[1] + vy * 2.5, bx, by, 2, ROD_T);
     pin(Math.round(px), Math.round(py)); pin(Math.round(ex), Math.round(ey)); pin(Math.round(F[0]), Math.round(F[1]));
-    blit(m.full ? 'bucket_full' : 'bucket', bx, by);
+    const bk = m.full ? 'bucket_full' : 'bucket', ink = inkPal(bk);                      // 1px ink halo so the bucket reads against the face
+    if (ink) for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) blit(bk, bx + ox, by + oy, { pal: ink });
+    blit(bk, bx, by);
     pin(Math.round(bx), Math.round(by));
   }
 
