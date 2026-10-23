@@ -47,10 +47,10 @@ SPR16.pickup = {
 };
 
 // Blue porta-potty, front view with a sliver of the right side (q). Roof vent stack rows 0..2, white roof lip rows 3..6,
-// door x5..14 rows 10..34 with louvered vent (rows 12..16), sign plate, chrome handle (rows 22..23), grey skid base.
+// door x5..14 rows 10..26 with louvered vent (rows 12..16), sign plate, chrome handle (rows 22..23), grey skid base. 32 px tall (trimmed from 40 for scale).
 SPR16.porta = {
-  w: 20, h: 40,
-  anchor: [0, 40],
+  w: 20, h: 32,
+  anchor: [0, 32],
   pal: { P:'#2255ff', p:'#7aa0ff', q:'#1233b0', k:'#141018', W:'#ffffff', w:'#d0d4dc', d:'#9aa0ac', C:'#c8ccd2', c:'#7c8289', D:'#6f6f6f', M:'#7a4a1c' },
   rows: [
     "............kkkk....",
@@ -77,14 +77,6 @@ SPR16.porta = {
     ".kpPPqPPPPPPPPqPqqk.",
     ".kpPPqPPPPPCcPqPqqk.",
     ".kpPPqPPPPPccPqPqqk.",
-    ".kpPPqPPPPPPPPqPqqk.",
-    ".kpPPqPPPPPPPPqPqqk.",
-    ".kpPPqPPPPPPPPqPqqk.",
-    ".kpPPqPPPPPPPPqPqqk.",
-    ".kpPPqPPPPPPPPqPqqk.",
-    ".kpPPqPPPPPPPPqPqqk.",
-    ".kpPPqPPPPPPPPqPqqk.",
-    ".kpPPqPPPPPPPPqPqqk.",
     ".kpPPqPPPPPPPMqPqqk.",
     ".kpPMqPPMPPPPPqPqqk.",
     ".kpPPqqqqqqqqqqPqqk.",

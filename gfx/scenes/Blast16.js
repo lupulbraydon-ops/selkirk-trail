@@ -42,6 +42,7 @@
   const FX0 = 128, FX1 = 320, FTOP = 56, FBOT = 170, CUT_TOP = 116;      // rock face box, cut line for blasted segments
   const HOLE_TOP = 60, HOLE_BOT = 164, GROUND = 170, FRONT = 184;       // hole bore rows; bench floor line; foreground line
   const SEG_W = 22;                                                     // one hole segment: hx-10 .. hx+12
+  const ARROW = ['...kkkk...', '...kHYk...', '...kHYk...', '...kHYk...', 'kkkkHYkkkk', 'kHYYYYYYsk', '.kHYYYYsk.', '..kHYYsk..', '...kYsk...', '....kk....'];
   const HX = (i) => (70 + i * 11) * 2;
   const PICKUP_X = 48, PORTA_X = 16, TANYA_X = 4, BARR_X = 18;
   const TREES = [                                                       // far slope (behind the face too: seen through blasted gaps)
@@ -135,18 +136,17 @@
     ditherRows(b, xa, xb, 90, 6, RK[2]); ditherRows(b, xa, xb, 134, 6, RK[3]); ditherRows(b, xa, xb, 161, 3, RK[4]);
     b.r(xa, FTOP, xb - xa, 2, RK[0]);                                    // lit lip at the bench top
     for (let x = xa; x < xb; x++) if (dith(x, FTOP + 2, 2)) b.px(x, FTOP + 2, RK[0]);
-    for (let y = FTOP; y < 164; y++) for (let x = Math.max(xa, 248); x < xb; x++) if (dith(x, y, x < 284 ? 1 : 2)) b.px(x, y, RK[Math.min(4, toneIdx(y) + 1)]); // right end away from the light
     for (let y0 = 72; y0 < 164; y0 += 16) {                              // bedding joints
       for (let x = xa; x < xb; x++) {
         const yy = y0 + R(1.5 * Math.sin(x * 0.3 + y0));
         if (hash(x >> 2, y0, 52) > 0.3) { b.px(x, yy, RK[Math.min(4, toneIdx(yy) + 1)]); if (hash(x >> 3, y0, 54) > 0.5) b.px(x, yy + 1, RK[Math.max(0, toneIdx(yy) - 1)]); }
       }
     }
-    for (let x = xa; x < xb; x++) if (hash(x, 0, 57) < 0.07) {           // vertical fractures
+    for (let x = xa; x < xb; x++) if (hash(x, 0, 57) < 0.035) {          // vertical fractures (sparse)
       const st = 60 + Math.floor(hash(x, 1, 57) * 92), len = 4 + Math.floor(hash(x, 2, 57) * 8);
       b.r(x, st, 1, len, RK[Math.min(4, toneIdx(st) + 1)]); b.px(x + 1, st, RK[Math.max(0, toneIdx(st) - 1)]);
     }
-    for (let y = FTOP + 3; y < 162; y++) for (let x = xa; x < xb; x++) if (hash(x, y, 58) < 0.022) { // chips: lit top, shade under
+    for (let y = FTOP + 3; y < 162; y++) for (let x = xa; x < xb; x++) if (hash(x, y, 58) < 0.012) { // chips: lit top, shade under (sparse)
       b.r(x, y, 2, 1, RK[Math.max(0, toneIdx(y) - 1)]); b.r(x, y + 1, 2, 1, RK[Math.min(4, toneIdx(y) + 1)]);
     }
     if (xa <= FX0) { b.r(FX0, FTOP, 2, 108, RK[0]); b.r(FX0, 164, 2, 6, RK[3]); }   // lit left edge
@@ -159,7 +159,7 @@
     b.r(xa, CUT_TOP, xb - xa, 1, RK[1]); b.r(xa, CUT_TOP + 1, xb - xa, 1, RK[2]);
     for (let y = CUT_TOP + 2; y < 164; y++) for (let x = xa; x < xb; x++) {
       const h = hash(x, y, 59);
-      if (h < 0.05) b.px(x, y, RK[2]); else if (h < 0.075) b.px(x, y, RK[1]); else if (h < 0.11) b.px(x, y, RK[4]);
+      if (h < 0.03) b.px(x, y, RK[2]); else if (h < 0.045) b.px(x, y, RK[1]); else if (h < 0.07) b.px(x, y, RK[4]);
     }
     for (const y0 of [136, 152]) for (let x = xa; x < xb; x++) if (hash(x >> 2, y0, 52) > 0.45) b.px(x, y0 + R(Math.sin(x * 0.3 + y0)), RK[4]);
     ditherRows(b, xa, xb, 161, 3, RK[4]); b.r(xa, 164, xb - xa, 6, RK[4]);
@@ -265,10 +265,9 @@
         P(hx - 2, y, 6, 1, red ? K.redHi : K.orHi); P(hx + 3, y, 1, h, red ? K.redSh : K.orSh);
       }
       if (blasted && k === 'under') { crack(hx - 6, 120, 44); crack(hx + 4, 100, 64); }
-      if (i === cur && phase === 'play') {                              // current-hole arrow, bobbing
+      if (i === cur && phase === 'play') {                              // current-hole marker: an outlined down-arrow bobbing over the collar
         const bob = Math.sin(t * 6) > 0 ? 1 : 0, ay = 44 + bob;
-        P(hx - 4, ay, 10, 4, K.cat); P(hx - 2, ay + 4, 6, 4, K.cat); P(hx, ay + 8, 2, 2, K.cat);
-        P(hx - 4, ay, 10, 1, K.catHi); P(hx - 4, ay + 1, 1, 3, K.catHi); P(hx + 5, ay + 1, 1, 3, K.catSh); P(hx + 3, ay + 5, 1, 3, K.catSh);
+        for (let r = 0; r < ARROW.length; r++) { const row = ARROW[r]; for (let c = 0; c < row.length; c++) { const ch = row[c]; if (ch === '.') continue; P(hx - 4 + c, ay + r, 1, 1, ch === 'k' ? K.ink : ch === 'H' ? K.catHi : ch === 's' ? K.catSh : K.cat); } }
       }
     }
     shotWire(blasted);

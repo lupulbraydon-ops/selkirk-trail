@@ -5,17 +5,19 @@
 // old 160 x 93 (PX = 8) drawing code was, restores PX and then draws the HUD line, the document text (canvas y 296,
 // i.e. logical y 74 on the sheet) and the flash text itself. Every old coordinate is doubled here.
 //
-// Composition (logical units, 320 x 186):
-//   0..116   wall: vinyl panelling (grooves every 32), chair rail y 54..58, window sprite (10,12), hardhat_rack,
-//            plywood shelf y 34..38 x 110..294 with binder_stack / binder_a / binder_b / radio on it, wall calendar,
-//            whiteboard (220..304, 46..84) with an 'ATP NOON' note (per-frame txt), SHRED / OUT (TO MEL) signs.
-//   116..128 desk front edge (old y 58..64 doubled): top edge y 116 so the caller's text lines up.
+// Composition (logical units, 320 x 186), v17: the desk is seen from higher up so the document lies ON the desk top.
+//   0..46    wall: vinyl panelling (grooves every 32), window sprite (8,6), hardhat_rack, plywood shelf y 34..38
+//            x 110..212 with binder_stack / binder_a / binder_b / radio on it, wall calendar, whiteboard (222..306,
+//            6..44) with an 'ATP NOON' note (per-frame txt), SHRED / OUT (TO MEL) signs. Props muted ~20 % toward the wall.
+//   46..116  desk top (back edge y 46..48 lit, wood grain, a dark desk pad under the document rest position).
+//   116..128 desk front edge (old y 58..64 doubled): the caller's document text sits at logical y 74, on the sheet.
 //   128..186 floor: planks, under-desk shadow, filing_cabinet on the right, dropped paper_sheets on the left.
-//   Desk items (base 116): shredder x 6, in_tray x 30 stacked twice, Harsh (person_clip, white hat, purple shirt)
-//   standing behind the desk at x 76..88, desk_lamp x 222, monitor x 238, coffee_mug x 264, out_tray x 276.
-//   Document: 112 x 58 sheet at (104 + 2*m.doc.x, 56) with a right/bottom offset shadow and a 96 x 4 life bar
-//   (green > 40 %, red below). The flying document (m.fly, m.flyDir) is the same sheet fading out toward the
-//   shredder (dir -1) or the out tray (dir +1), 140 logical px of travel, lifting 20 px.
+//   Desk items (base 116): shredder x 6, in_tray x 30 stacked twice, monitor x 248, coffee_mug x 274, out_tray x 286;
+//   desk_lamp at the back of the desk (x 236, base 58). Harsh (person_clip, white hat, purple shirt) stands behind the
+//   desk at x 88, base 52 (his boots hidden by the desk back edge).
+//   Document: 168 x 58 sheet at (76 + 2*m.doc.x, 56) with a right/bottom offset shadow and a 152 x 4 life bar at the
+//   foot of the sheet (green > 40 %, red below); the text band y 70..84 is left clear. The flying document (m.fly,
+//   m.flyDir) is the same sheet fading out toward the shredder (dir -1) or the out tray (dir +1), 140 px of travel.
 //   (SPR16.paper_sheet is 28 x 16; at 1:1 it would be a quarter of the old document, so the desk document is drawn
 //   procedurally in the sprite's palette/design at the old footprint. The 28 x 16 sprite is used for the loose
 //   sheets on the floor.)
@@ -46,10 +48,12 @@
     blue: '#2255ff', blueSh: '#1233b0',
     shadow: '#2a2a30',                                                                       // * old sheet shadow
   };
-  const DESK_Y = 116;                 // desk top edge (old 58 doubled)
-  const DESK_LAYER_Y = 88;            // top of the baked desk layer (tallest desk prop, the shredder, reaches y 92)
-  const DOC_X0 = 104, DOC_Y = 56;     // document rest position (old 52, 28 doubled)
-  const DOC_W = 112, DOC_H = 58;      // sheet body; shadow adds 2 right / 2 down (old 56 x 30 doubled)
+  const DESK_Y = 116;                 // desk front edge (old 58 doubled)
+  const DESK_BACK = 46;               // desk back edge: the desk top spans 46..116
+  const DESK_LAYER_Y = 44;            // top of the baked desk layer (lamp on the desk back reaches y 44)
+  const DOC_X0 = 76, DOC_Y = 56;      // document rest position (centred on x 160, 58 tall so the caller's text at y 74 sits on it)
+  const DOC_W = 168, DOC_H = 58;      // sheet body; shadow adds 2 right / 2 down
+  const BAR_W = DOC_W - 16;           // life bar width
   const HARSH_PAL = { H: '#ffffff', h: '#d0d4dc', S: '#6a3fbf', s: '#4a2a8a', V: '#6a3fbf', P: '#3552a0', p: '#2f478c' };
 
   // ---------- helpers ----------
@@ -87,46 +91,43 @@
 
   // ---------- background: wall + floor + wall props (baked once) ----------
   function drawBackground(ox, oy) {
-    // wall panelling
-    P(ox, oy, 320, DESK_Y, K.wall);
-    for (let x = 0; x < 320; x += 32) { P(ox + x, oy, 2, DESK_Y, K.wallGroove); P(ox + x + 2, oy, 1, DESK_Y, K.wallHi); }
+    // wall panelling (0..46)
+    P(ox, oy, 320, DESK_BACK, K.wall);
+    for (let x = 0; x < 320; x += 32) { P(ox + x, oy, 2, DESK_BACK, K.wallGroove); P(ox + x + 2, oy, 1, DESK_BACK, K.wallHi); }
     P(ox, oy, 320, 2, K.wallDeep);                                        // ceiling shadow line
-    // chair rail
-    P(ox, oy + 54, 320, 4, K.rail); P(ox, oy + 54, 320, 1, K.railHi); P(ox, oy + 57, 320, 1, K.railSh); P(ox, oy + 58, 320, 1, K.wallDeep);
     // window (sprite anchor is top-left) with a sill under it
-    blit16('window', ox + 10, oy + 12);
-    P(ox + 8, oy + 48, 60, 3, K.grey[1]); P(ox + 8, oy + 48, 60, 1, K.grey[0]); P(ox + 8, oy + 50, 60, 1, K.grey[3]); P(ox + 8, oy + 51, 60, 1, K.wallDeep);
+    blit16('window', ox + 8, oy + 4);
+    P(ox + 6, oy + 40, 60, 3, K.grey[1]); P(ox + 6, oy + 40, 60, 1, K.grey[0]); P(ox + 6, oy + 42, 60, 1, K.grey[3]); P(ox + 6, oy + 43, 60, 1, K.wallDeep);
     // hard hats on the wall
-    blit16('hardhat_rack', ox + 74, oy + 34);
+    blit16('hardhat_rack', ox + 74, oy + 32);
     // shelf: plywood board with steel brackets and a shadow line on the wall under it
-    P(ox + 110, oy + 38, 184, 2, K.wallDeep);
-    P(ox + 110, oy + 34, 184, 4, K.plyBase); P(ox + 110, oy + 34, 184, 1, K.ply); P(ox + 110, oy + 37, 184, 1, K.plySeam);
-    for (const bx of [116, 200, 284]) { P(ox + bx, oy + 38, 2, 8, K.steel); P(ox + bx, oy + 38, 1, 8, K.steelHi); P(ox + bx, oy + 45, 2, 1, K.steelSh); P(ox + bx + 2, oy + 38, 6, 2, K.steel); P(ox + bx + 2, oy + 39, 6, 1, K.steelSh); }
+    P(ox + 110, oy + 38, 102, 2, K.wallDeep);
+    P(ox + 110, oy + 34, 102, 4, K.plyBase); P(ox + 110, oy + 34, 102, 1, K.ply); P(ox + 110, oy + 37, 102, 1, K.plySeam);
+    for (const bx of [116, 202]) { P(ox + bx, oy + 38, 2, 7, K.steel); P(ox + bx, oy + 38, 1, 7, K.steelHi); P(ox + bx, oy + 44, 2, 1, K.steelSh); P(ox + bx + 2, oy + 38, 6, 2, K.steel); P(ox + bx + 2, oy + 39, 6, 1, K.steelSh); }
     // shelf contents (base = shelf top, y 34)
     blit16('binder_stack', ox + 112, oy + 34);
     blit16('binder_a', ox + 140, oy + 34); blit16('binder_b', ox + 142, oy + 29);
     blit16('radio', ox + 166, oy + 34);
     blit16('binder_stack', ox + 184, oy + 34);
-    blit16('binder_b', ox + 212, oy + 34); blit16('binder_a', ox + 214, oy + 29);
-    blit16('binder_stack', ox + 238, oy + 34);
-    blit16('binder_a', ox + 266, oy + 34);
-    // wall calendar (above the document's rest position)
-    box3(ox + 150, oy + 40, 26, 14, K.paper, K.paper, K.paperS);
-    P(ox + 150, oy + 40, 26, 3, K.red); P(ox + 150, oy + 40, 26, 1, K.redHi);
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) P(ox + 153 + c * 4, oy + 45 + r * 3, 2, 1, K.paperS);
-    P(ox + 165, oy + 48, 2, 1, K.red); P(ox + 166, oy + 49, 2, 1, K.red); P(ox + 165, oy + 50, 2, 1, K.red); P(ox + 167, oy + 48, 1, 1, K.red); P(ox + 165, oy + 51, 1, 1, K.red); // the X
-    P(ox + 149, oy + 39, 28, 1, K.grey[3]); P(ox + 162, oy + 38, 2, 2, K.steel);   // hanger
-    // whiteboard with grid and marker scribbles, marker tray below
-    P(ox + 220, oy + 46, 84, 38, K.grey[2]); P(ox + 220, oy + 46, 84, 1, K.grey[0]); P(ox + 220, oy + 46, 1, 38, K.grey[0]);
-    P(ox + 220, oy + 83, 84, 1, K.grey[3]); P(ox + 303, oy + 46, 1, 38, K.grey[3]);
-    P(ox + 222, oy + 48, 80, 34, K.paper);
-    for (let x = 238; x < 302; x += 16) P(ox + x, oy + 48, 1, 34, K.paperB);
-    for (let y = 58; y < 82; y += 10) P(ox + 222, oy + y, 80, 1, K.paperB);
-    P(ox + 224, oy + 50, 12, 2, K.blue); P(ox + 240, oy + 50, 8, 2, K.blue); P(ox + 224, oy + 60, 26, 2, K.green); P(ox + 256, oy + 60, 12, 2, K.blue);
-    P(ox + 224, oy + 70, 18, 2, K.blue); P(ox + 256, oy + 70, 30, 2, K.paperS); P(ox + 240, oy + 76, 40, 2, K.paperS);
-    P(ox + 266, oy + 50, 34, 1, K.red); P(ox + 266, oy + 57, 34, 1, K.red); P(ox + 266, oy + 50, 1, 8, K.red); P(ox + 299, oy + 50, 1, 8, K.red); // red box (ATP NOON txt goes inside per frame)
-    P(ox + 222, oy + 84, 80, 3, K.steel); P(ox + 222, oy + 84, 80, 1, K.steelHi); P(ox + 222, oy + 86, 80, 1, K.steelSh);
-    P(ox + 226, oy + 83, 6, 2, K.red); P(ox + 234, oy + 83, 6, 2, K.blue); P(ox + 242, oy + 83, 6, 2, K.green);      // markers
+    // wall calendar (between the shelf and the whiteboard, above the shelf line)
+    box3(ox + 190, oy + 12, 26, 14, K.paper, K.paper, K.paperS);
+    P(ox + 190, oy + 12, 26, 3, K.red); P(ox + 190, oy + 12, 26, 1, K.redHi);
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) P(ox + 193 + c * 4, oy + 17 + r * 3, 2, 1, K.paperS);
+    P(ox + 205, oy + 20, 2, 1, K.red); P(ox + 206, oy + 21, 2, 1, K.red); P(ox + 205, oy + 22, 2, 1, K.red); P(ox + 207, oy + 20, 1, 1, K.red); P(ox + 205, oy + 23, 1, 1, K.red); // the X
+    P(ox + 189, oy + 11, 28, 1, K.grey[3]); P(ox + 202, oy + 10, 2, 2, K.steel);   // hanger
+    // whiteboard with grid and marker scribbles, marker tray below (222..306, 6..44)
+    P(ox + 222, oy + 6, 84, 36, K.grey[2]); P(ox + 222, oy + 6, 84, 1, K.grey[0]); P(ox + 222, oy + 6, 1, 36, K.grey[0]);
+    P(ox + 222, oy + 41, 84, 1, K.grey[3]); P(ox + 305, oy + 6, 1, 36, K.grey[3]);
+    P(ox + 224, oy + 8, 80, 32, K.paper);
+    for (let x = 240; x < 304; x += 16) P(ox + x, oy + 8, 1, 32, K.paperB);
+    for (let y = 18; y < 40; y += 10) P(ox + 224, oy + y, 80, 1, K.paperB);
+    P(ox + 226, oy + 10, 12, 2, K.blue); P(ox + 242, oy + 10, 8, 2, K.blue); P(ox + 226, oy + 20, 26, 2, K.green); P(ox + 258, oy + 20, 12, 2, K.blue);
+    P(ox + 226, oy + 30, 18, 2, K.blue); P(ox + 258, oy + 30, 30, 2, K.paperS); P(ox + 242, oy + 36, 40, 2, K.paperS);
+    P(ox + 268, oy + 10, 34, 1, K.red); P(ox + 268, oy + 17, 34, 1, K.red); P(ox + 268, oy + 10, 1, 8, K.red); P(ox + 301, oy + 10, 1, 8, K.red); // red box (ATP NOON txt goes inside per frame)
+    P(ox + 224, oy + 42, 80, 3, K.steel); P(ox + 224, oy + 42, 80, 1, K.steelHi); P(ox + 224, oy + 44, 80, 1, K.steelSh);
+    P(ox + 228, oy + 41, 6, 2, K.red); P(ox + 236, oy + 41, 6, 2, K.blue); P(ox + 244, oy + 41, 6, 2, K.green);      // markers
+    // mute the wall props ~20 % toward the wall tone so the document is the brightest thing in the room
+    ctx.save(); ctx.globalAlpha = 0.2; P(ox, oy, 320, DESK_BACK, K.wall); ctx.restore();
     // floor
     P(ox, oy + 128, 320, 58, K.floor);
     for (let x = 0; x < 320; x += 16) { P(ox + x, oy + 128, 1, 58, K.floorSeam); P(ox + x + 1, oy + 128, 1, 58, K.floorHi); }
@@ -142,14 +143,19 @@
   // ---------- desk layer: front edge + everything standing on it (baked once, rows 88..186, transparent above the desk) ----------
   function drawDeskLayer(ox, oy) {
     const y = oy - DESK_LAYER_Y;                                          // layer starts at DESK_LAYER_Y
+    // desk top 46..116: lit back edge, wood grain, a dark desk pad where the document lands
+    P(ox, y + DESK_BACK, 320, DESK_Y - DESK_BACK, K.desk); P(ox, y + DESK_BACK, 320, 2, K.deskHi); P(ox, y + DESK_BACK + 2, 320, 1, K.deskSh);
+    for (let gy = DESK_BACK + 7; gy < DESK_Y - 2; gy += 6) for (let x = (gy % 12 ? 0 : 10); x < 320; x += 28) P(ox + x + (gy % 3), y + gy, 14, 1, K.deskHi);
+    P(ox + DOC_X0 - 8, y + DOC_Y - 4, DOC_W + 18, DOC_H + 10, K.deskSh); P(ox + DOC_X0 - 8, y + DOC_Y - 4, DOC_W + 18, 1, K.floorHi); P(ox + DOC_X0 - 8, y + DOC_Y - 4, 1, DOC_H + 10, K.floorHi);
+    // front edge 116..128
     P(ox, y + DESK_Y, 320, 8, K.desk); P(ox, y + DESK_Y, 320, 2, K.deskHi); P(ox, y + DESK_Y + 7, 320, 1, K.deskSh); P(ox, y + DESK_Y + 8, 320, 4, K.deskSh);
     for (let x = 0; x < 320; x += 80) P(ox + x, y + DESK_Y + 2, 1, 6, K.deskSh);   // desk sections
+    blit16('desk_lamp', ox + 236, y + DESK_BACK + 12);
     blit16('shredder', ox + 6, y + DESK_Y);
     blit16('in_tray', ox + 30, y + DESK_Y); blit16('in_tray', ox + 30, y + DESK_Y - 8);
-    blit16('desk_lamp', ox + 222, y + DESK_Y);
-    blit16('monitor', ox + 238, y + DESK_Y);
-    blit16('coffee_mug', ox + 264, y + DESK_Y);
-    blit16('out_tray', ox + 276, y + DESK_Y);
+    blit16('monitor', ox + 248, y + DESK_Y);
+    blit16('coffee_mug', ox + 274, y + DESK_Y);
+    blit16('out_tray', ox + 286, y + DESK_Y);
   }
 
   // ---------- the document: 112 x 58 sheet in paper_sheet's palette, offset shadow, header, ruled lines ----------
@@ -162,10 +168,12 @@
     // header: yellow logo block + dark title bar + sub line
     P(ox + 6, oy + 4, 6, 6, K.yel); P(ox + 6, oy + 4, 6, 1, K.yelHi); P(ox + 6, oy + 4, 1, 6, K.yelHi); P(ox + 6, oy + 9, 6, 1, K.yelSh); P(ox + 11, oy + 4, 1, 6, K.yelSh);
     P(ox + 15, oy + 5, 48, 3, K.paperE); P(ox + 15, oy + 9, 26, 1, K.paperD);
-    // life-bar track (fill drawn per frame at oy + 11 .. 15, x 8 .. 104)
-    P(ox + 8, oy + 11, 96, 4, K.paperB); P(ox + 8, oy + 14, 96, 1, K.paperS);
-    // ruled lines (old 5 lines at 36 + 4i, widths 48 - (7i % 20), doubled)
-    for (let i = 0; i < 5; i++) P(ox + 8, oy + 16 + i * 8, 96 - 2 * ((i * 7) % 20), 1, K.paperS);
+    P(ox + DOC_W - 30, oy + 5, 22, 3, K.paperD); P(ox + DOC_W - 30, oy + 9, 14, 1, K.paperB);   // revision block top-right
+    // y 14..28 (the caller's text band is 18..28, logical 74..84): clean paper, nothing else drawn there
+    // ruled lines below the text band
+    for (let i = 0; i < 3; i++) P(ox + 8, oy + 32 + i * 6, BAR_W - 2 * ((i * 7) % 20), 1, K.paperS);
+    // life-bar track at the foot of the sheet (fill drawn per frame at oy + 50 .. 54, x 8 .. 8 + BAR_W)
+    P(ox + 8, oy + 50, BAR_W, 4, K.paperB); P(ox + 8, oy + 53, BAR_W, 1, K.paperS);
   }
   function sheetAt(x, y) { layer('sheet', x, y, DOC_W + 2, DOC_H + 2, drawSheet); }
 
@@ -175,7 +183,7 @@
     // 1. wall + floor + wall props
     layer('paper_bg', 0, 0, 320, 186, drawBackground);
     // 2. Harsh behind the desk (flipped to face the document); boots hidden by the desk edge
-    blit16('person_clip', 88, DESK_Y + 6, { pal: HARSH_PAL, flip: true });
+    blit16('person_clip', 88, DESK_BACK + 6, { pal: HARSH_PAL, flip: true });
     // 3. desk edge + desk props
     layer('paper_desk', 0, DESK_LAYER_Y, 320, 186 - DESK_LAYER_Y, drawDeskLayer);
     // shredder LED blinks while a shred/submit result flashes; monitor cursor blinks slowly
@@ -188,12 +196,12 @@
       sheetAt(dx, DOC_Y);
       const dl = m.docLife > 0 ? m.docLife : 1;
       const frac = Math.max(0, Math.min(1, (d.life || 0) / dl));
-      const w = Math.round(96 * frac);
+      const w = Math.round(BAR_W * frac);
       if (w > 0) {
         const ok = frac > 0.4;
-        P(dx + 8, DOC_Y + 11, w, 4, ok ? K.green : K.red);
-        P(dx + 8, DOC_Y + 11, w, 1, ok ? K.greenHi : K.redHi);
-        P(dx + 8, DOC_Y + 14, w, 1, ok ? K.greenSh : K.redSh);
+        P(dx + 8, DOC_Y + 50, w, 4, ok ? K.green : K.red);
+        P(dx + 8, DOC_Y + 50, w, 1, ok ? K.greenHi : K.redHi);
+        P(dx + 8, DOC_Y + 53, w, 1, ok ? K.greenSh : K.redSh);
       }
     }
     // 5. flying document: fades toward the shredder (-1) or the out tray (+1)
@@ -207,8 +215,8 @@
     }
     // 6. in-scene labels (canvas coordinates)
     txt('SHRED', 15 * PX, 84 * PX, 20, K.redHi, 'center');
-    txt('OUT (TO MEL)', 292 * PX, 99 * PX, 18, '#ffffff', 'center');
-    txt('ATP NOON', 283 * PX, 51 * PX, 16, K.red, 'center');
+    txt('OUT (TO MEL)', 302 * PX, 97 * PX, 18, '#ffffff', 'center');
+    txt('ATP NOON', 285 * PX, 11 * PX, 16, K.red, 'center');
   };
   W.renderMGPaper16.clearCache = function () { cache.clear(); };
 })();

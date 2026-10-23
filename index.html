@@ -36,6 +36,7 @@ canvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);image-r
 <script src="gfx/scenes/Paper16.js"></script>
 <script src="gfx/scenes/Pump16.js"></script>
 <script src="gfx/scenes/Phone16.js"></script>
+<script src="gfx/scenes/Pave16.js"></script>
 <script>
 'use strict';
 // ============================================================
@@ -58,7 +59,12 @@ function L(x1,y1,x2,y2,c,w){ctx.strokeStyle=c;ctx.lineWidth=(w||1)*PX;ctx.beginP
 // ---- v8 render helpers: bakes (static layers drawn once per PX), shading, dither, contact shadows ----
 const BAKE={};function bake(key,h,fn){const k=key+'@'+PX;if(BAKE[k])return BAKE[k];const c=document.createElement('canvas');c.width=SW*4;c.height=h*PX;const o=ctx;ctx=c.getContext('2d');try{fn();}finally{ctx=o;}BAKE[k]=c;return c;}
 function blit(c,y){ctx.drawImage(c,0,(y||0)*PX);}
-const SHM=new Map();function shade(c,f){if(c.length===4)c='#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3];if(c.length!==7)return c;f=f||.75;const k=c+f;if(SHM.has(k))return SHM.get(k);const n=parseInt(c.slice(1),16);const r=(n>>16)*f|0,g=((n>>8)&255)*f|0,b=(n&255)*f|0;const s='#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);SHM.set(k,s);return s;}
+// shade(c,f): darken c by f and shift its hue toward a cool blue-violet (#2a2a5a) as it darkens, keeping the darkened luminance,
+// so shadows read as cooler rather than "same colour, darker". Cached per (colour, factor).
+const SHM=new Map();function shade(c,f){if(c.length===4)c='#'+c[1]+c[1]+c[2]+c[2]+c[3]+c[3];if(c.length!==7)return c;f=f||.75;const k=c+f;if(SHM.has(k))return SHM.get(k);const n=parseInt(c.slice(1),16);let r=(n>>16)*f,g=((n>>8)&255)*f,b=(n&255)*f;
+ const w=Math.max(0,Math.min(.5,(1-f)*.6)),lum=.299*r+.587*g+.114*b;const tr=lum*.885,tg=lum*.885,tb=lum*1.9;   // #2a2a5a scaled to the darkened luminance
+ r=Math.max(0,Math.min(255,r+(tr-r)*w))|0;g=Math.max(0,Math.min(255,g+(tg-g)*w))|0;b=Math.max(0,Math.min(255,b+(tb-b)*w))|0;
+ const s='#'+((1<<24)|(r<<16)|(g<<8)|b).toString(16).slice(1);SHM.set(k,s);return s;}
 function dith(y0,y1,a,b){const w=SW*4/PX;P(0,y0,w,y1-y0,a);if(y1-y0<3)return;for(let x=0;x<w;x++){if(x%4===0)P(x,y1-3,1,1,b);if(x%2===0)P(x,y1-2,1,1,b);if(x%4!==3)P(x,y1-1,1,1,b);}}
 function shadowRow(x,w,base){ctx.globalAlpha=.3;P(x,base,w,1,'#000');ctx.globalAlpha=1;}
 function beacon(x,y,on){P(x,y,1,1,on?C.amber:C.yellowDk);}
@@ -69,7 +75,7 @@ const CLOUDS_FAR=[[40,14,18],[150,9,26],[250,20,14]],CLOUDS_NEAR=[[90,30,22],[23
 function mgSky(key,fn,yb,rain){return bake(key+(rain?'_r':''),93,()=>{const b=rain?[[0,20,'#5a6a82'],[20,40,'#6f7f95'],[40,93,'#8797ab']]:[[0,16,DAY.sky0],[16,32,DAY.sky1],[32,50,DAY.sky2],[50,93,DAY.sky3]];
  for(let i=0;i<b.length;i++){const [y0,y1,c]=b[i];if(i<b.length-1)dith(y0,y1,c,b[i+1][2]);else P(0,y0,160,y1-y0,c);}
  for(let x=0;x<160;x++){const h=fn(x),lit=fn(x+1)>=h;P(x,yb-h,1,h,lit?DAY.m2Lit:DAY.m2Sh);P(x,yb-h,1,2,lit?DAY.snowLit:DAY.snowSh);}});}
-function txt(s,x,y,size,color,align){ctx.font=size+'px "VT323", "Courier New", monospace';ctx.fillStyle=color||'#fff';ctx.textAlign=align||'left';ctx.textBaseline='top';ctx.fillText(s,x,y);}
+function txt(s,x,y,size,color,align,outline){ctx.font=size+'px "VT323", "Courier New", monospace';ctx.textAlign=align||'left';ctx.textBaseline='top';if(outline){ctx.lineJoin='round';ctx.lineWidth=Math.max(3,size/9);ctx.strokeStyle='#141018';ctx.strokeText(s,x,y);}ctx.fillStyle=color||'#fff';ctx.fillText(s,x,y);}
 function wrap(s,max){const out=[];for(const para of String(s).split('\n')){let line='';for(const w of para.split(' ')){if((line+' '+w).trim().length>max){out.push(line.trim());line=w;}else line+=' '+w;}out.push(line.trim());}return out;}
 function fmt(n){n=Math.round(n);const neg=n<0;n=Math.abs(n);let s=n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1000?'$'+Math.round(n/1000)+'K':'$'+n;return (neg?'-':'')+s;}
 function fmtFull(n){return (n<0?'-':'')+'$'+Math.abs(Math.round(n)).toLocaleString('en-CA');}
@@ -104,10 +110,20 @@ TREES.sort((a,b)=>a.y-b.y);
 
 // ---------------- game data ----------------
 const ROLES=[
- {name:'EllisDon Project Manager',cash:5000000,mult:1,blurb:'$5.0M mobilization allowance. Andy Smith watches you closely.'},
- {name:'Senior PM (Calgary office)',cash:8000000,mult:0.75,blurb:'$8.0M allowance. Andy has your cell number. He uses it.'},
- {name:'Co-op Student',cash:2000000,mult:3,blurb:'$2.0M and nobody expects anything. Triple points.'},
+ {name:'Senior PM (Calgary office)',cash:8000000,mult:0.75,diff:'EASY',blurb:'$8.0M allowance. Andy has your cell number. He uses it. x0.75 points.'},
+ {name:'EllisDon Project Manager',cash:5000000,mult:1,diff:'NORMAL',blurb:"$5.0M allowance. Lenny's wish list costs more than that. Andy watches you closely."},
+ {name:'Co-op Student',cash:3000000,mult:3,diff:'HARD',blurb:'$3.0M, one dozer if you are lucky, and nobody expects anything. Triple points.'},
 ];
+// What each crew member does for you while they are on site, and what you lose when Andy takes them (shown when he asks for a name).
+const TRAITS={
+ Scott:{keep:'runs the site',lose:'site slows 5%, Andy calls hit twice as hard'},
+ Lenny:{keep:'earthworks GF',lose:'earthworks slow 10%, Louie is in charge'},
+ Louie:{keep:'fixes things with a pry bar',lose:'no more pry-bar fixes, Finning every time'},
+ Adam:{keep:'labour crew',lose:'no labour crew: no dewatering, nobody to find toads'},
+ Joe:{keep:'bridge super',lose:'bridge at 60% speed, nobody to set the girders'},
+ Harsh:{keep:'paperwork',lose:'no paperwork at all: no NCRs, no surprise change orders'},
+ Tanya:{keep:'safety',lose:'no shutdowns, but every injury costs 50% more'},
+};
 const PARTY_DEF=[
  {name:'Scott',role:'Site Superintendent',hat:'#fff',shirt:'#1f6b3a'},
  {name:'Lenny',role:'General Foreman, Earthworks',hat:'#f2c400',shirt:'#8a2a2a'},
@@ -147,6 +163,29 @@ const MILESTONES=[
   mel:"Mel: 'The shoulders are 50 millimetres narrow.' They are not. You will discuss this for eleven months.",
   look:'Fresh asphalt. A ribbon. A moose walking the detour instead of the crossing. Somewhere, Andy is composing an email.'},
 ];
+// Decision at each milestone (except the last), river-crossing style: the odds the crew quotes are the real odds.
+const CROSSINGS={
+ 1:{t:"Mel's permit says thirty metres each side. Lenny cleared forty. Mel is standing in the extra ten.",ch:[
+   {l:"Replant the extra strip with Adam's crew (sure thing: 1 week, $60,000)",fx:{weeks:1,loss:60000,health:2},t:"Four hundred seedlings. Adam's crew names every one. Mel counts them. Mel is satisfied, which is a word you have not heard before."},
+   {l:"Argue that the clearing limit is 'a guideline' (Scott: 60/40)",run:()=>Math.random()<0.6?{t:"Mel re-reads the permit. It says 'approximately thirty'. He writes 'approximately' down and leaves. Scott buys lunch.",fx:{}}:{t:"Mel re-reads the permit. It says thirty. Non-Conformance Report, two weeks of 'remediation', and a memo about guidelines.",fx:{weeks:2,loss:200000}}},
+   {l:"Have Harsh file the trees as 'danger trees' (Harsh: 'ninety percent')",run:()=>Math.random()<0.5?{t:"Harsh's danger tree assessment is accepted. It is written in a font that does not exist. Nobody looks closely.",fx:{}}:{t:"Mel asks which danger the trees posed. Harsh says 'falling'. Mel asks in which direction. NCR, one week, and a very long email.",fx:{weeks:1,loss:150000,health:-2}}}]},
+ 2:{t:"Gerald, the boulder the size of a bus, is sitting on the centreline. Lenny wants to blast. Tanya wants a meeting. Mel wants to know what you are going to do.",ch:[
+   {l:"Hoe-ram Gerald into gravel (sure thing: 1 week, $180,000)",fx:{weeks:1,loss:180000},t:"A week of the hoe ram, day and night. Gerald is now a very expensive pile of gravel. Louie keeps a piece."},
+   {l:"Blast him (Lenny: 'seventy percent clean')",run:()=>Math.random()<0.7?{t:"One shot, clean. Gerald is in nine pieces and all nine are on our side of the fence. Lenny does not smile, but he nods.",fx:{health:3}}:{t:"Gerald is in four pieces. One of them is on the highway. Flyrock report, two weeks, WorkSafe is 'aware'.",fx:{weeks:2,loss:260000,health:-4}}},
+   {l:"Leave Gerald as a 'landscape feature' (Mel: 50/50)",run:()=>Math.random()<0.5?{t:"Mel looks at Gerald for a long time. 'Rest area,' he says. The design change is approved. Gerald has a plaque.",fx:{loss:-100000,health:2}}:{t:"Mel looks at Gerald for a long time. Then at you. NCR for 'boulder', three weeks to remove it, and a drone video of the whole thing.",fx:{weeks:3,loss:300000}}}]},
+ 3:{t:"Freshet. The creek is forty centimetres deep and rising, and the abutment pour is scheduled for tomorrow. Joe is looking at the sky.",ch:[
+   {l:"Wait for the water to drop (sure thing: 1 week)",fx:{weeks:1},t:"A week of looking at a creek. The creek drops. Joe pours. The concrete is perfect, which Joe does not mention."},
+   {l:"Pour tomorrow anyway (Joe: 'sixty-forty, and I don't like the forty')",run:()=>Math.random()<0.6?{t:"The water holds. The pour goes in at dawn. Joe stands in the creek in gumboots the whole time and says nothing, which means yes.",fx:{health:3},bonus:0.1}:{t:"The water comes up at two in the morning. The forms float. Joe moves them twice. Washout, two weeks, and a very quiet Joe.",fx:{weeks:2,loss:300000,health:-3}}},
+   {l:"Divert the creek with the excavator (sure thing: 1 week, $200,000, environmental monitor 'notified')",fx:{weeks:1,loss:200000},t:"The creek now runs through a ditch that was not on the drawings. The monitor is 'notified'. The pour goes in. Mel takes a photo of the ditch."}]},
+ 4:{t:"The multiplate arch is bolted and the grizzly has moved in before the backfill. The environmental monitor is delighted. Adam is not going in there.",ch:[
+   {l:"Call the Conservation Officer (sure thing: 1 week)",fx:{weeks:1},t:"The CO arrives, looks at the bear, says 'yep', and waits. The bear leaves on Thursday. Backfill starts Friday."},
+   {l:"Adam, a pot, and a wooden spoon (Adam: 'fifty-fifty')",cond:s=>here('Adam'),run:()=>Math.random()<0.5?{t:"Adam bangs the pot. The bear looks at Adam. Adam looks at the bear. The bear leaves. Adam is a legend for one afternoon.",fx:{health:4},bonus:0.05}:{t:"Adam bangs the pot. The bear does not care. Adam runs. Tanya has a video. Two weeks and a wildlife plan.",fx:{weeks:2,loss:40000,health:-5}}},
+   {l:"Backfill around him (Lenny: 'he'll leave when it gets loud')",run:()=>Math.random()<0.65?{t:"The first dozer push and the bear is gone up the slope. Mel writes down 'crossing already in use'. It is the best day of the project.",fx:{health:2},bonus:0.08}:{t:"The bear does not leave. The bear gets upset. The dozer operator gets upset. One week, and the monitor has filed something.",fx:{weeks:1,loss:80000,health:-3}}}]},
+ 5:{t:"Mel says the crossfall is two percent. It is two percent. He wants it proven before paving. The paving crew is booked for Monday.",ch:[
+   {l:"Re-shoot the whole grade with survey (sure thing: 1 week, $60,000)",fx:{weeks:1,loss:60000},t:"The survey crew shoots every stake. Two percent, everywhere. Mel reads the report twice and says 'fine'. Paving moves to the next Monday."},
+   {l:"Trust Louie and pave Monday (Louie: 'seventy percent, easy')",cond:s=>here('Louie'),run:()=>Math.random()<0.7?{t:"Mel walks the grade with his tape on Sunday. He finds nothing. Monday, the paver arrives on time, which is a first.",fx:{health:3},bonus:0.1}:{t:"Mel finds a high spot at 5+200 with his tape. Then two more. Re-grade, two weeks, and the paving crew bills for the cancelled Monday.",fx:{weeks:2,loss:180000,health:-3}}},
+   {l:"Give Mel Harsh's as-built drawings (Harsh: 'they are mostly as built')",cond:s=>here('Harsh'),run:()=>Math.random()<0.5?{t:"Mel files the as-builts without opening them. The crossfall on them is drawn as a smiley face. Nobody will ever know.",fx:{}}:{t:"Mel opens the as-builts. They are for a different highway. NCR, one week, and Mel now opens everything.",fx:{weeks:1,loss:200000,health:-2}}}]},
+};
 const WEATHERS=[{n:'Clear',w:5},{n:'Rain',w:3},{n:'Sideways rain',w:1},{n:'Snow',w:2},{n:'Smoke',w:2},{n:'Bluebird',w:2}];
 const CONDS=['burnout','the pub flu','a bad back (WCB claim pending)','Tim Hortons withdrawal','a case of the Mondays','hypothermia (it is June)','Mel-induced anxiety'];
 const ANDY_CALLS=[
@@ -175,7 +214,7 @@ const EVENTS=[
  {w:3,t:"A 40-ton rock truck slid off the haul road into the creek. Scott says the driver is fine. The truck is less fine. The creek is fine, it is ankle deep.",cond:s=>s.trucks>0,fx:{trucks:-1,weeks:2,loss:900000}},
  {w:3,t:"The D8 threw a track on the rock cut.",cond:s=>s.dozers>0,ch:[
    {l:"Wait for Finning (2 weeks, $80,000)",fx:{weeks:2,loss:80000},t:"Finning arrives in two weeks. The mechanic bills for the drive from Cranbrook. Both ways. Twice."},
-   {l:"Let Louie fix it with a pry bar and optimism",run:()=>Math.random()<0.5?{t:"Louie fixed it in three days. Nobody knows how. Lenny does not ask.",fx:{}}:{t:"Louie fixed it. Then it fell off again. Four weeks and a new final drive.",fx:{weeks:4,loss:300000}}},
+   {l:"Let Louie fix it with a pry bar and optimism (Louie: 'seventy percent')",cond:s=>here('Louie'),run:()=>Math.random()<0.7?{t:"Louie fixed it in three days. Nobody knows how. Lenny does not ask.",fx:{}}:{t:"Louie fixed it. Then it fell off again. Four weeks and a new final drive.",fx:{weeks:4,loss:300000}}},
    {l:"Use the spare track group",cond:s=>s.tracks>0,fx:{tracks:-1},t:"The spare track goes on. Louie is unbearably smug for a month."}]},
  {w:4,t:"Mel from the Ministry arrives unannounced. He has a clipboard and a look.",ch:[
    {l:"Show him the wildlife crossing",run:s=>s.km>=4?{t:"Mel nods. He writes 'acceptable'. It is the nicest thing he has ever written.",fx:{health:5}}:{t:"There is no wildlife crossing yet. Mel writes for a long time. You are issued a Non-Conformance Report for 'vibes'.",fx:{weeks:1,loss:150000}}},
@@ -183,34 +222,35 @@ const EVENTS=[
    {l:"Send him to talk to Joe",cond:s=>joeHere(),run:()=>Math.random()<0.6?{t:"Mel talks to Joe about bearing pads for an hour. Mel leaves with a headache and no findings.",fx:{health:4}}:{t:"Mel talks to Joe. Joe has questions for Mel. Mel is not used to that. Mel writes a memo.",fx:{weeks:1}}},
    {l:"Have Harsh hand him a binder",run:()=>Math.random()<0.5?{t:"Harsh hands Mel a binder. It is last month's binder with a new cover. Mel does not notice. Mel leaves happy.",fx:{health:3}}:{t:"Mel opens Harsh's binder. Page three is a takeout menu from the Golden Dragon. NCR.",fx:{weeks:1,loss:200000}}},
    {l:"Hide behind the crane",fx:{weeks:1,loss:250000},t:"Mel finds you in forty seconds. He issues an NCR for 'hiding'."}]},
- {w:4,t:"Tanya has shut down the site. Someone's hi-vis was 'more of a beige'.",ch:[
+ {w:4,t:"Tanya has shut down the site. Someone's hi-vis was 'more of a beige'.",cond:s=>here('Tanya'),ch:[
    {l:"Hand out new vests",cond:s=>s.vests>=3,fx:{vests:-3},t:"New vests for everyone. Tanya reopens the site after a 45-minute toolbox talk about the colour orange."},
    {l:"Argue with Tanya",fx:{weeks:1,health:-5},t:"You lost. Everyone lost. Site reopens next week. Tanya adds you to a list."}]},
  {w:3,t:"Snow. In June. Forty centimetres of it.",fx:{weeks:1,health:-4}},
  {w:3,t:"A grizzly has moved into the half-built wildlife crossing. The environmental monitor says 'See? It works!'",cond:s=>s.km>=3&&s.km<5,fx:{weeks:2}},
  {w:3,t:"Design Change #47 arrives from MOTI. The creek bridge is now 1.2 metres longer. The creek is not.",cond:s=>s.km<3,fx:{weeks:3,loss:2000000}},
- {w:2,t:"Louie found a rock that looks like a fossil. It is a rock. Archaeology hold anyway.",fx:{weeks:2,loss:120000}},
+ {w:2,t:"Louie found a rock that looks like a fossil. It is a rock. Archaeology hold anyway.",cond:s=>here('Louie'),fx:{weeks:2,loss:120000}},
  {w:2,t:"Someone ordered 400 cubic metres of concrete for a 40 cubic metre abutment pour. Nobody is saying who.",cond:s=>s.km>=2&&s.km<4,fx:{loss:180000}},
- {w:2,t:"Adam's labour crew says they are two weeks ahead. Adam's labour crew has never once been right.",fx:{}},
- {w:3,t:"Highway 1 is closed east of Golden. Again. The girder truck is stuck in Revelstoke eating a Denny's breakfast.",cond:s=>s.km>=2&&s.km<3,fx:{weeks:2,loss:220000}},
+ {w:2,t:"Adam's labour crew says they are two weeks ahead. Adam's labour crew has never once been right.",cond:s=>here('Adam'),fx:{}},
+ {w:3,t:["Highway 1 is closed east of Golden. Again. The girder truck is stuck in Revelstoke eating a Denny's breakfast.","Highway 1 closed again. The girder trucker sends a photo of his Grand Slam. He looks happy. You do not."],cond:s=>s.km>=2&&s.km<3,fx:{weeks:2,loss:220000}},
  {w:3,t:"Rockfall on the haul road. Nobody hurt. The grader is now a shorter grader.",cond:s=>s.graders>0,fx:{graders:-1,weeks:1,loss:410000}},
  {w:2,t:"The grader operator quit to work at Kicking Horse Resort. He says the snow is 'more reliable than the schedule'.",cond:s=>s.graders>0,fx:{weeks:1}},
  {w:3,t:"The Tim Hortons in Golden closed for renovations. Morale has entered free fall.",fx:{coffee:-50,health:-8}},
  {w:2,t:"A tourist in a rental RV drove into the rock cut. Then reversed and did it again.",fx:{weeks:1,loss:60000}},
  {w:3,t:"Andy Smith calls to 'just check in'. The call lasts three hours. He asks about the bridge nine times. It is a very small bridge.",fx:{health:-5}},
  {w:2,t:"EllisDon accounting emails asking why 14 rock trucks are fuelling on a 12-truck fleet.",fx:{loss:75000}},
- {w:3,t:"Wildfire smoke. Air quality index: yes. Tanya issues N95s and a 90-minute lecture on breathing.",fx:{weeks:1,health:-3}},
+ {w:3,t:"Wildfire smoke. Air quality index: yes. Tanya issues N95s and a 90-minute lecture on breathing.",cond:s=>here('Tanya'),fx:{weeks:1,health:-3}},
+ {w:2,t:"Wildfire smoke. Nobody issues anything. Adam's crew works in bandanas. Three of them go home coughing.",cond:s=>!here('Tanya'),fx:{weeks:1,health:-6}},
  {w:3,t:"The multiplate arrived. 2,000 bolts, 400 plates, and instructions in German.",cond:s=>s.km>=3&&s.km<4,ch:[
    {l:"Let Lenny translate with his phone",run:()=>Math.random()<0.6?{t:"Lenny's phone says 'Insert the arch into the bear'. Close enough. Bolting begins.",fx:{}}:{t:"Two weeks in, the arch is upside down.",fx:{weeks:2,loss:90000}}},
    {l:"Wait for the supplier's rep from Ontario",fx:{weeks:3,loss:40000},t:"The rep arrives, looks at it, says 'yeah', and leaves."}]},
- {w:3,t:"The environmental monitor found a toad. All work stops for the toad. The toad is not in a hurry.",fx:{weeks:1}},
+ {w:3,t:["The environmental monitor found a toad. All work stops for the toad. The toad is not in a hurry.","Another toad. Or the same toad. Adam says it is the same toad. The monitor says it does not matter. One week.","The toad has a name now. It is Gerald Junior. The monitor has a sign. Work stops for the sign."],cond:s=>here('Adam'),fx:{weeks:1}},
  {w:3,t:"Freshet. The creek is now 40 centimetres deep instead of 10. Joe has moved the forms twice. The creek is still winning.",cond:s=>s.km>=2&&s.km<3,fx:{weeks:2,loss:300000}},
  {w:2,t:"Blasting delayed. Someone forgot to call the Ministry. Lenny says it was Louie. Louie says it was Lenny.",cond:s=>s.km<2,fx:{weeks:1,loss:35000}},
  {w:2,t:"You found $50,000 of change orders that were never billed. Andy says 'good' for the first time in his life.",fx:{loss:-50000,health:5}},
- {w:2,t:"Louie welded the yard gate shut. With the rock trucks inside.",cond:s=>s.trucks>0,fx:{weeks:1}},
+ {w:2,t:"Louie welded the yard gate shut. With the rock trucks inside.",cond:s=>s.trucks>0&&here('Louie'),fx:{weeks:1}},
  {w:2,t:"The entire rock truck fleet formed a convoy to Golden for lunch. All of them. At once. Scott was leading.",cond:s=>s.trucks>=3,fx:{fuel:-2000,coffee:-20}},
- {w:2,t:"A CN train is stopped across the site access. For six hours. The conductor is also eating a Denny's breakfast.",fx:{fuel:-500}},
- {w:3,t:"Tanya's safety meeting ran four hours. Topic: ladders. There are no ladders on site.",fx:{health:-2}},
+ {w:2,t:["A CN train is stopped across the site access. For six hours. The conductor is also eating a Denny's breakfast.","The CN train is back across the access. The conductor waves. He has a Denny's bag.","CN again. The conductor now knows Scott by name and asks about the bridge. Scott did not need that today."],fx:{fuel:-500}},
+ {w:3,t:"Tanya's safety meeting ran four hours. Topic: ladders. There are no ladders on site.",cond:s=>here('Tanya'),fx:{health:-2}},
  {w:2,t:"Mel approved the RFI! It was a different RFI.",fx:{}},
  {w:2,t:"Scott found the original schedule in a drawer. Everyone laughed for a long time. Then cried a bit.",fx:{health:3}},
  {w:1,t:"Andy Smith visited site. Someone said 'it's fine' in front of Mel. Andy now needs someone to blame.",kill:"someone said 'it's fine' in front of Mel"},
@@ -223,18 +263,19 @@ const EVENTS=[
  {w:2,t:"The port-a-potty blew over in a chinook. It was occupied. Tanya has questions.",fx:{health:-2}},
  {w:2,t:"A survey stake was moved by a marmot. Twelve metres of road are now in the wrong place. Lenny is re-shooting the alignment.",cond:s=>s.km<5,fx:{weeks:1,loss:95000}},
  {w:2,t:"Lenny's earthworks crew hit a boulder the size of a house. Lenny wants to blast. Tanya wants a meeting. Scott wants lunch.",cond:s=>s.km>=4&&s.km<6,fx:{weeks:1,loss:140000}},
- {w:2,t:"Adam's labour crew shovelled the wrong ditch. It is a very clean ditch. It is on the other side of the highway.",fx:{weeks:1}},
+ {w:2,t:"Adam's labour crew shovelled the wrong ditch. It is a very clean ditch. It is on the other side of the highway.",cond:s=>here('Adam'),fx:{weeks:1}},
  // ---- mini-games ----
  {w:5,t:'',mgAny:true},
  // ---- Harsh ----
- {w:3,t:"Harsh submitted the QA package to the Ministry. It was 400 pages. Mel read all of it. It was 400 copies of the same page.",fx:{weeks:1,loss:90000}},
- {w:3,t:"Harsh's RFI response cites a spec clause that does not exist. Mel has asked for the clause. Harsh is now writing the clause.",fx:{weeks:1}},
- {w:3,t:"Harsh's daily reports say the bridge is done. The bridge is not done. Mel has driven out to look at the bridge.",cond:s=>s.km<3,fx:{loss:100000,health:-3}},
- {w:2,t:"Harsh backdated the compaction tests. Tanya found out. Tanya has a folder now. The folder has a name.",fx:{weeks:1,health:-2}},
- {w:2,t:"Harsh submitted the traffic management plan. It is the traffic management plan from a job in Surrey. Mel noticed. Surrey does not have avalanche gates.",fx:{loss:80000}},
- {w:2,t:"Harsh's paperwork somehow got a change order approved. Nobody knows what it was for. Andy says not to ask.",fx:{loss:-200000,health:3}},
- {w:2,t:"Harsh's quantity sheet shows 30,000 cubic metres of rock moved. Lenny says 12,000. Mel is bringing a drone.",cond:s=>s.km>=1&&s.km<3,fx:{weeks:1,loss:120000}},
- {w:3,t:"Mel asks for the concrete test results. Harsh has 'test results'.",cond:s=>s.km>=2&&s.km<4,ch:[
+ {w:3,t:"Harsh submitted the QA package to the Ministry. It was 400 pages. Mel read all of it. It was 400 copies of the same page.",cond:s=>here('Harsh'),fx:{weeks:1,loss:90000}},
+ {w:3,t:"Harsh's RFI response cites a spec clause that does not exist. Mel has asked for the clause. Harsh is now writing the clause.",cond:s=>here('Harsh'),fx:{weeks:1}},
+ {w:3,t:"Harsh's daily reports say the bridge is done. The bridge is not done. Mel has driven out to look at the bridge.",cond:s=>s.km<3&&here('Harsh'),fx:{loss:100000,health:-3}},
+ {w:2,t:"Harsh backdated the compaction tests. Tanya found out. Tanya has a folder now. The folder has a name.",cond:s=>here('Harsh')&&here('Tanya'),fx:{weeks:1,health:-2}},
+ {w:2,t:"Harsh submitted the traffic management plan. It is the traffic management plan from a job in Surrey. Mel noticed. Surrey does not have avalanche gates.",cond:s=>here('Harsh'),fx:{loss:80000}},
+ {w:2,t:"Harsh's paperwork somehow got a change order approved. Nobody knows what it was for. Andy says not to ask.",cond:s=>here('Harsh'),fx:{loss:-200000,health:3}},
+ {w:2,t:"Harsh's quantity sheet shows 30,000 cubic metres of rock moved. Lenny says 12,000. Mel is bringing a drone.",cond:s=>s.km>=1&&s.km<3&&here('Harsh'),fx:{weeks:1,loss:120000}},
+ {w:2,t:"Nobody is doing the paperwork since Harsh left. Mel has sent a letter about the missing daily reports. The letter is also a daily report.",cond:s=>!here('Harsh'),fx:{weeks:1,loss:60000}},
+ {w:3,t:"Mel asks for the concrete test results. Harsh has 'test results'.",cond:s=>s.km>=2&&s.km<4&&here('Harsh'),ch:[
    {l:"Submit Harsh's test results",run:()=>Math.random()<0.55?{t:"Mel files them without reading. Harsh winks. Everyone pretends not to see the wink.",fx:{}}:{t:"Mel reads them. The cylinder IDs are from 2019. Non-Conformance Report, two weeks, and Mel now reads everything.",fx:{weeks:2,loss:180000}}},
    {l:"Actually test the concrete",fx:{weeks:1,loss:40000},t:"The concrete is fine. It was always fine. Harsh is offended that you checked."}]},
  // ---- Joe ----
@@ -245,20 +286,33 @@ const EVENTS=[
 ];
 
 // Mini-game schedule: each game once, early in the job, in this order. Playing one from the menu counts.
-const MG_TYPES=['phone','load','paper','blast','pump','pick','grade'];
-const MG_OK={load:s=>s.trucks>0,pick:s=>s.crane>0,grade:s=>s.graders>0};
-const MG_PROMPT={phone:"Scott's phone has not stopped since mobilization. He hands it to you and walks toward the bridge.",load:"Lenny: 'Clearing's done. Now the real work. Get in the excavator and load some trucks.'",paper:"Mel wants the ATP package for the rock cut by noon. Harsh has been 'compiling'. You have seen what Harsh compiles.",blast:"Lenny: 'Holes are drilled. Powder truck's here. You're loading.'",pump:"Cross culvert at 2+100. Adam's crew has the trench open. It has been raining since Tuesday.",pick:"Joe is on the abutment. The girders are on the hook.",grade:"Lenny: 'Grade's yours on the approach fill. Don't embarrass me in front of Mel.'"};
-const MG_SCHEDULE=[['phone',0.35],['load',0.8],['paper',1.2],['blast',1.6],['pump',2.1],['pick',2.5],['grade',3.4]];
+const MG_TYPES=['phone','load','paper','blast','pump','pick','grade','pave'];
+const MG_OK={load:s=>s.trucks>0,pick:s=>s.crane>0&&joeAlive(),grade:s=>s.graders>0,pump:s=>here('Adam'),paper:s=>here('Harsh')};
+const MG_PROMPT={phone:"Scott's phone has not stopped since mobilization. He hands it to you and walks toward the bridge.",load:"Lenny: 'Clearing's done. Now the real work. Get in the excavator and load some trucks.'",paper:"Mel wants the ATP package for the rock cut by noon. Harsh has been 'compiling'. You have seen what Harsh compiles.",blast:"Lenny: 'Holes are drilled. Powder truck's here. You're loading.'",pump:"Cross culvert at 2+100. Adam's crew has the trench open. It has been raining since Tuesday.",pick:"Joe is on the abutment. The girders are on the hook.",grade:"Lenny: 'Grade's yours on the approach fill. Don't embarrass me in front of Mel.'",pave:"The paver is on site and the first load of asphalt is steaming in the truck. The roller operator did not show up. Lenny looks at you."};
+const MG_SCHEDULE=[['phone',0.35],['load',0.8],['paper',1.2],['blast',1.6],['pump',2.1],['pick',2.6],['grade',4.4],['pave',5.4]];
+const MG_GOAL={phone:'18 calls right, 2 wrong at most, in 60 s',load:'4 trucks in 60 s, under 5 spills',paper:'every real sheet to Mel, under 3 nonsense',blast:'8 holes in the green band, no heavy ones',pump:'6 sections in, trench never floods',pick:'3 girders on the seats, none in the creek',grade:'80% on the string line',pave:'85% density, no shoving, stay off the paver'};
 const mgAllowed=ty=>!MG_OK[ty]||MG_OK[ty](S);
 // ---------------- tuning ----------------
 const CFG={speed:0.14,evRate:0.42,illRate:0.07,burn:600000,lateKill:8};
 // ---------------- state ----------------
+const TOASTS=[];let lastLossSeen=null,lastKmSeen=null;
 let S;
 function newGame(){S={screen:'title',week:1,km:0,loss:0,cash:0,fuel:0,coffee:0,vests:6,tracks:0,trucks:0,dozers:0,graders:0,crane:0,
  pace:0,ration:0,weather:'Clear',party:PARTY_DEF.map(p=>Object.assign({},p,{health:100,alive:true,cond:null,condWeeks:0,gone:''})),
- graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],joeAway:0,joeLeftAt:0,joeRetAt:0,played:{},arcade:false,fuelOut:false,storeSite:false};}
+ graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],joeAway:0,joeLeftAt:0,joeRetAt:0,played:{},arcade:false,fuelOut:false,storeSite:false,seen:{},crossed:{},blame:0,andyAsk:-99,lastCoffeeMsg:-99,coffeeMsgs:0,epiFor:null,epi:''};TOASTS.length=0;lastLossSeen=null;lastKmSeen=null;}
 newGame();if(!gateOpen())S.screen='gate';
 const alive=()=>S.party.filter(p=>p.alive);
+const here=name=>{const p=S.party.find(q=>q.name===name);return !!(p&&p.alive)&&(name!=='Joe'||S.joeAway<=0);};
+// HUD toasts for money and progress line items (G7): anything that changes S.loss or S.km shows up top-right for a moment
+function toast(text,col){TOASTS.push({text,col:col||'#fff',t:2.6});if(TOASTS.length>4)TOASTS.shift();}
+function toastCheck(){if(!S||S.arcade||['title','intro','about','name','role','crew','store','summary','gate','dead','win'].includes(S.screen)){lastLossSeen=S?S.loss:null;lastKmSeen=S?S.km:null;return;}
+ if(lastLossSeen!==null&&S.loss!==lastLossSeen){const d=S.loss-lastLossSeen;if(Math.abs(d)>=1000)toast((d>0?'-':'+')+fmt(Math.abs(d)),d>0?'#ff8080':'#80ff9a');}
+ if(lastKmSeen!==null&&S.km>lastKmSeen+0.04)toast('+'+(S.km-lastKmSeen).toFixed(2)+' km','#ffd400');
+ lastLossSeen=S.loss;lastKmSeen=S.km;}
+// Previous runs' graves (G11): epitaphs persist in localStorage and show up along the trail in later games
+function pastGraves(){try{return JSON.parse(localStorage.getItem('selkirk-graves')||'[]');}catch(_){return [];}}
+function saveGrave(g){try{const a=pastGraves();a.push(g);localStorage.setItem('selkirk-graves',JSON.stringify(a.slice(-40)));}catch(_){}}
+const roadside=()=>pastGraves().filter(g=>g.km<=S.km+0.001&&g.boss!==undefined).slice(-5);
 // Yard: at the Golden yard (week 1) prices are list and the allowance is the limit. At a milestone, Finning's field truck is on site: 20% surcharge, 60% credit on returns, and anything past the allowance goes on EllisDon's account (the loss).
 const SITE_MARKUP=1.2,SITE_REFUND=0.6;
 const storePrice=it=>S.storeSite?Math.round(it.price*SITE_MARKUP):it.price;
@@ -282,20 +336,28 @@ function applyFx(fx){if(!fx)return;
  if(fx.weeks){S.week+=fx.weeks;S.loss+=burn()*fx.weeks;}
  if(fx.loss)S.loss+=fx.loss;
  for(const k of ['fuel','coffee','trucks','dozers','graders','vests','tracks','crane'])if(fx[k])S[k]=Math.max(0,S[k]+fx[k]);
- if(fx.health)for(const p of alive())p.health=Math.max(1,Math.min(100,p.health+fx.health));
+ if(fx.health){const dh=fx.health<0&&!here('Tanya')?Math.round(fx.health*1.5):fx.health;for(const p of alive())p.health=Math.max(1,Math.min(100,p.health+dh));}
 }
+function fireNamed(v,reason){v.alive=false;v.gone='Andy';S.fired++;S.graves.push({name:v.name,epi:reason});if(v.name==='Joe'){S.joeAway=0;}
+ show({t:`Andy Smith killed ${v.name} because ${reason}. ${TRAITS[v.name]?TRAITS[v.name].lose.charAt(0).toUpperCase()+TRAITS[v.name].lose.slice(1)+'.':''}`,andy:true,then:()=>askEpitaph(v,'Andy')});}
+// Andy needs a name (G3): the player picks who goes, with the consequence spelled out, or takes the blame and Andy's patience drops
 function fire(reason){const a=alive();if(!a.length){gameover(reason);return;}
- const v=rnd(a);v.alive=false;v.gone='Andy';S.fired++;S.graves.push({name:v.name,epi:reason});
- show({t:`Andy Smith killed ${v.name} because ${reason}.`,andy:true});}
+ const ch=a.map(p=>({l:`${p.name}: ${TRAITS[p.name]?TRAITS[p.name].lose:'gone'}`,run:()=>{fireNamed(p,reason);return{t:''};}}));
+ ch.push({l:`Take it yourself. Andy's patience drops: he kills you at ${CFG.lateKill-S.blame-1} weeks late instead of ${CFG.lateKill-S.blame}.`,run:()=>{S.blame++;for(const p of alive())p.health=Math.min(100,p.health+3);return{t:`Andy: 'Your name, then.' He writes it down. The crew buys you a coffee. Andy now tolerates ${CFG.lateKill-S.blame} weeks late, not one more.`};}});
+ show({t:`Andy Smith is on site because ${reason}. Andy needs a name.`,andy:true,ch});}
 function leave(p){p.alive=false;p.gone='quit';S.quit++;S.graves.push({name:p.name,epi:'went to the ski hill'});
- if(p.name==='Joe'){S.joeAway=0;joeLeaves(999);show({t:"Joe has taken a job in Calgary. He left the bearing pad drawings on your desk."});return;}
- show({t:`${p.name} quit to go work at Kicking Horse Resort. ${p.name} says the snow is more reliable than the schedule.`});}
+ if(p.name==='Joe'){S.joeAway=0;joeLeaves(999);show({t:"Joe has taken a job in Calgary. He left the bearing pad drawings on your desk.",then:()=>askEpitaph(p,'quit')});return;}
+ show({t:`${p.name} quit to go work at Kicking Horse Resort. ${p.name} says the snow is more reliable than the schedule.`,then:()=>askEpitaph(p,'quit')});}
+function askEpitaph(p,by){if(S.arcade)return;S.epiFor={name:p.name,by,km:+S.km.toFixed(2),week:S.week};S.epi='';S.epiRet=S.ret;S.screen='epitaph';}
+function epitaphDone(){const g=S.epiFor;if(g){saveGrave({name:g.name,by:g.by,km:g.km,week:g.week,epi:(S.epi.trim()||rnd(['Gone to the ski hill','Asked Mel a question','Said it was fine','Finished the bridge, allegedly'])).slice(0,32),boss:S.name});}
+ S.epiFor=null;S.ret=S.epiRet||'travel';S.screen='msg';finishMsg();}
 function gameover(reason){S.deathReason=reason;S.moving=false;S.screen='dead';S.queue=[];}
-function randomEvent(){const pool=EVENTS.filter(e=>!e.cond||e.cond(S));const e=pickW(pool);
- if(e.kill){show({t:e.t,then:()=>fire(e.kill)});return;}
+function evText(e,i){const n=S.seen[i]||0;return Array.isArray(e.t)?e.t[Math.min(n,e.t.length-1)]:e.t;}
+function randomEvent(){const pool=[];EVENTS.forEach((e,i)=>{if(e.cond&&!e.cond(S))return;const n=S.seen[i]||0;pool.push({e,i,w:e.w*Math.pow(0.25,n)});});const pk=pickW(pool);const e=pk.e;const text=evText(e,pk.i);S.seen[pk.i]=(S.seen[pk.i]||0)+1;
+ if(e.kill){show({t:text,then:()=>fire(e.kill)});return;}
  if(e.mgAny){const fresh=MG_TYPES.filter(ty=>!S.played[ty]&&mgAllowed(ty));const pool=fresh.length?fresh:MG_TYPES.filter(mgAllowed);const ty=rnd(pool);show({t:MG_PROMPT[ty],then:()=>startMG(ty)});return;}
- if(e.ch){show({t:e.t,ch:e.ch.filter(c=>!c.cond||c.cond(S))});return;}
- applyFx(e.fx);if(e.on)e.on(S);show({t:e.t});}
+ if(e.ch){show({t:text,ch:e.ch.filter(c=>!c.cond||c.cond(S))});return;}
+ applyFx(e.fx);if(e.on)e.on(S);show({t:text});}
 function illness(){const a=alive();if(!a.length)return;const p=rnd(a.filter(x=>!x.cond));if(!p)return;p.cond=rnd(CONDS);p.condWeeks=4;show({t:`${p.name} has ${p.cond}.`});}
 
 function tick(){
@@ -306,20 +368,21 @@ function tick(){
  const pf=[1,1.3,1.6][S.pace];
  let speed=CFG.speed*fleet*pf*wf; if(S.fuel<=0)speed*=0.3;
  if(S.msIndex===2&&!joeHere())speed*=0.6;   // bridge without the bridge super
+ if(!here('Lenny'))speed*=0.9; if(!here('Scott'))speed*=0.95;   // crew traits (G10)
  if(S.joeAway>0&&S.joeAway<900){if(--S.joeAway<=0){S.joeRetAt=now();show({t:rnd(["Joe is back from Calgary. The abutment forms are ready.","Joe is back. He went straight to the creek to check the forms."])});return;}}
  const use=(200+S.trucks*350+S.dozers*500+S.graders*250+S.crane*150)*pf;
  S.fuel=Math.max(0,S.fuel-use);if(S.fuel>0)S.fuelOut=false;
  S.coffee=Math.max(0,S.coffee-[14,7,3][S.ration]*alive().length);
- S.loss+=burn();
+ S.loss+=burn();if(lastLossSeen!==null)lastLossSeen+=burn();
  const dh=[-1,-2,-4][S.pace]+[2,0,-2][S.ration]+(S.coffee<=0?-4:0)+(S.weather==='Snow'?-2:0);
  for(const p of alive()){p.health+=dh;if(p.cond){p.health-=6;if(--p.condWeeks<=0)p.cond=null;}p.health=Math.min(100,p.health);
   if(p.health<=0){leave(p);return;}}
  const next=MILESTONES[S.msIndex];
- S.km=Math.min(S.km+speed,next.km);
+ S.km=Math.min(S.km+speed,next.km);if(lastKmSeen!==null)lastKmSeen=S.km;
  if(S.km>=next.km){reachMilestone(next);return;}
  for(const [ty,km] of MG_SCHEDULE){if(S.km>=km&&!S.played[ty]&&mgAllowed(ty)){show({t:MG_PROMPT[ty],then:()=>startMG(ty)});return;}}
  if(S.fuel<=0&&!S.fuelOut){S.fuelOut=true;applyFx({weeks:1,loss:45000,fuel:20000});show({t:"You are out of diesel. Louie siphons the pickup. A fuel truck from Golden brings 20,000 L a week later. $45,000, plus a tip."});return;}
- if(S.coffee<=0&&Math.random()<0.25){show({t:rnd(["The crew is out of coffee. Adam has stopped blinking.","No coffee. Scott is drinking hydraulic fluid 'as a joke'. It is not a joke.","Coffee gone. Lenny has started a fire just to feel something."])});return;}
+ if(S.coffee<=0&&S.week-S.lastCoffeeMsg>=4){S.lastCoffeeMsg=S.week;const n=S.coffeeMsgs++;show({t:["The crew is out of coffee. Adam has stopped blinking.","Still no coffee. Scott is drinking hydraulic fluid 'as a joke'. It is not a joke.","Week three without coffee. Lenny has started a fire just to feel something. Finning's truck sells coffee at the next milestone, in case you were wondering.","No coffee. Nobody talks any more. The grader runs itself now. Nobody asks how."][Math.min(n,3)]});return;}
  const r=Math.random();
  if(r<CFG.illRate)illness(); else if(r<CFG.illRate+CFG.evRate)randomEvent();
 }
@@ -390,6 +453,21 @@ function crewKind(p,i){return p.clip?'person_clip':p.tie?'person_tie':(p.wave||i
 function puff16(x,y,t,seed){for(let k=0;k<3;k++){const ph=((t*0.9)+k/3+seed*0.37)%1;ctx.globalAlpha=0.7*(1-ph);const s=2+Math.floor(ph*3);P(x+Math.sin(ph*7+seed)*3-s/2,y-ph*18,s,s,ph<0.35?'#777777':'#bbbbbb');}ctx.globalAlpha=1;}
 function beam16(pts,col,a){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=a;ctx.fillStyle=col;ctx.beginPath();pts.forEach(([x,y],i)=>i?ctx.lineTo(x*PX,y*PX):ctx.moveTo(x*PX,y*PX));ctx.closePath();ctx.fill();ctx.restore();}
 function glow16(x,y,r0,r1,col,a){ctx.save();ctx.globalCompositeOperation='lighter';const g=ctx.createRadialGradient(x*PX,y*PX,r0*PX,x*PX,y*PX,r1*PX);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=a;ctx.fillStyle=g;ctx.fillRect((x-r1)*PX,(y-r1)*PX,2*r1*PX,2*r1*PX);ctx.restore();}
+// farPal(name, extra): sprite palette mixed 20% toward a cool grey-blue, for the grass row behind the road (atmospheric depth); day only, spal() handles night
+const FARP=new Map();function fmix(hex){const n=parseInt(hex.slice(1),16),r=n>>16,g=(n>>8)&255,b=n&255;const m=(v,k)=>Math.round(v+(k-v)*0.2);return '#'+((1<<24)|(m(r,0x7a)<<16)|(m(g,0x90)<<8)|m(b,0xb0)).toString(16).slice(1);}
+function farPal(name,extra){const k=name+'|'+(extra?JSON.stringify(extra):'');let o=FARP.get(k);if(o)return o;const spr=SPR16[name];o={};const src=Object.assign({},spr?spr.pal:{},extra||{});for(const key in src)o[key]=fmix(src[key]);FARP.set(k,o);return o;}
+// pool16: additive elliptical light pool on the ground under a headlight / work-light beam
+function pool16(x,y,rx,ry,col,a){ctx.save();ctx.globalCompositeOperation='lighter';ctx.globalAlpha=a;ctx.translate(x*PX,y*PX);ctx.scale(1,ry/rx);const g=ctx.createRadialGradient(0,0,0,0,0,rx*PX);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.fillRect(-rx*PX,-rx*PX,2*rx*PX,2*rx*PX);ctx.restore();}
+// snow overlays (baked once per day/night): grass strip dusting (drawn under the trees) and caps on every upward-facing pixel of the trees and scenery (drawn over them)
+function hash16(x,y,s){let n=Math.imul(x|0,374761393)+Math.imul(y|0,668265263)+Math.imul((s|0)+1,1274126177);n=Math.imul(n^(n>>>13),1103515245);n^=n>>>16;return (n>>>0)/4294967296;}
+function snowGrass16(night){return bake('snowg16'+(night?'n':'d'),372,()=>{const W=night?nmix('#f2f5ff'):'#f2f5ff',Ws=night?nmix('#c9d4f0'):'#dfe6fa';
+ P(0,172,640,2,W);for(let x=0;x<640;x++){if(hash16(x,0,3)<.7)P(x,174,1,1,W);if(hash16(x,1,3)<.35)P(x,175,1,1,Ws);}
+ for(let y=176;y<199;y++){const d=.42*(1-(y-176)/23)+.04;for(let x=0;x<640;x+=2){const h=hash16(x,y,4);if(h<d*.55)P(x,y,2,1,W);else if(h<d)P(x,y,2,1,Ws);}}
+ for(let x=0;x<640;x++)if(hash16(x,9,5)<.3)P(x,200,1,1,Ws);});}
+function snowCaps16(night,TK){return bake('snowc16'+(night?'n':'d'),372,()=>{const W=night?nmix('#f2f5ff'):'#f2f5ff',Ws=night?nmix('#c9d4f0'):'#dfe6fa';
+ const cap=(k,x0,base)=>{const s=SPR16[k];if(!s)return;const y0=base-s.h;for(let y=0;y<s.h;y++){const r=s.rows[y],up=s.rows[y-1]||'';for(let x=0;x<s.w;x++){const c=r[x];if(c==='.'||c==='k'||c==='t'||c==='T')continue;if(y>0&&up[x]&&up[x]!=='.')continue;
+  const inner=x>0&&r[x-1]!=='.'&&x<s.w-1&&r[x+1]!=='.';if(inner)P(x0+x,y0+y,1,1,W);else if(r[x+1]==='.'){if((x+y)%2===0)P(x0+x,y0+y,1,1,Ws);}else P(x0+x,y0+y,1,1,hash16(x0+x,y,6)<.6?W:Ws);}}};
+ TREES.forEach((tr,i)=>cap(TK[i%TK.length],tr.x*2,(tr.y+8)*2));for(const [k,x,b] of SCENERY16)cap(k,x,b);});}
 const SCENERY16=[['stump',30,199],['bush',236,199],['rock_a',318,175],['bush',392,199],['rock_b',598,199],['stump',470,180],['bush',96,178]];
 function drawScene(v,t){
  const mv=!!v.moving;const ta=mv?t:0;NITE=!!v.night;const night=NITE;
@@ -398,6 +476,7 @@ function drawScene(v,t){
  PX=2;
  try{
  TERRAIN16.opts.clouds=false;   // clouds are drifting sprites here
+ const smoke=v.weather==='Smoke';TERRAIN16.opts.smoke=smoke&&!night;   // wildfire smoke: warm sky, far ridges lost in the haze (baked in terrain16)
  // ---- sky, clouds, birds, mountains
  drawSky16(night,t,'main');
  const clouds=[['cloud_c',40,18,3],['cloud_a',300,44,4],['cloud_b',520,30,5]];
@@ -408,10 +487,11 @@ function drawScene(v,t){
  drawGround16(night,st,'main');drawCreek16(night,t,st,'main');drawRoad16(st,'main');
  if(night){ctx.save();ctx.globalCompositeOperation='multiply';ctx.globalAlpha=.35;ctx.fillStyle=N16;ctx.fillRect(0,172*PX,640*PX,200*PX);if(st>=1)ctx.fillRect(0,128*PX,56*PX,44*PX);ctx.restore();}
  // ---- trees along the grass strip (seeded positions doubled), then bushes/rocks/stumps
- const TK=['tree_a','tree_b','tree_c'];
- if(v.weather==='Snow')P(0,172,640,1,'#ffffff');
- TREES.forEach((tr,i)=>{const k=TK[i%3];blit16(k,tr.x*2,(tr.y+8)*2,{pal:spal(k)});});
+ const TK=['tree_a','tree_d','tree_b','tree_e','tree_c'];   // tall d/e spruces mixed in so the forest reads taller than the crew
+ if(v.weather==='Snow')blit(snowGrass16(night),0);
+ TREES.forEach((tr,i)=>{const k=TK[i%TK.length];blit16(k,tr.x*2,(tr.y+8)*2,{pal:spal(k)});});
  for(const [k,x,b] of SCENERY16)blit16(k,x,b,{pal:spal(k)});
+ if(v.weather==='Snow')blit(snowCaps16(night,TK),0);
  // ---- creek structures by stage: 0 stakes, 1 formwork, 2+ concrete abutments + girders, 3+ multiplate with the bear, 5 paved deck
  if(st===0)stakes16(296,214);
  if(st===1){abutment16(216,208,20,46,1,night);abutment16(404,208,20,46,1,night);formworkPile16(8,188);}
@@ -424,14 +504,14 @@ function drawScene(v,t){
  v.graves.forEach((g,i)=>blit16('tombstone',566+(i%3)*16+(i>=3?8:0),i>=3?166:176,{pal:spal('tombstone')}));
  let dx=null;if(v.dozers>0){const ph=(ta*0.5)%1;dx=428+ph*20;const pile=8+ph*12;
   const dp=night?nmix(C.dirt3):C.dirt3,dh=night?nmix(C.dirtHi):C.dirtHi,dd=night?nmix(C.dirt2):C.dirt2;P(dx+58,188-pile,pile+6,pile,dp);P(dx+58,188-pile,pile+6,1,dh);P(dx+58+pile+3,188-pile+2,3,pile-2,dd);
-  blit16('dirt_pile',dx+58,188,{pal:spal('dirt_pile')});
-  blit16('dozer',dx,188,{pal:spal('dozer',{A:(night&&ta>0&&Math.sin(ta*6)>0)?'#ffb000':'#8a6a00'},night)});
+  blit16('dirt_pile',dx+58,188,{pal:spal('dirt_pile',farPal('dirt_pile'))});
+  blit16('dozer',dx,188,{pal:spal('dozer',farPal('dozer',{A:(night&&ta>0&&Math.sin(ta*6)>0)?'#ffb000':'#8a6a00'}),night)});
   if(mv)puff16(dx+37,188-42,t,0);}
  const fa=v.joeAway||0,fl=v.joeLeftAt||0,fr=v.joeRetAt||0;let fx=null;
  if(v.joeAlive!==false){
   if(fa>0){const d=t-fl;if(d<3.5)fx=250+d*40;}
   else{const d=t-fr;fx=(fr&&d<3.5)?Math.max(250,330-d*40):250;}
-  if(fx!==null&&fx<330)blit16('pickup',fx*2,188,{pal:spal('pickup',{B:'#e0334a',b:'#b3001b',d:'#6e0010'},night)});}
+  if(fx!==null&&fx<330)blit16('pickup',fx*2,188,{pal:spal('pickup',farPal('pickup',{B:'#e0334a',b:'#b3001b',d:'#6e0010'}),night)});}
  // ---- road row (base 200): the white pickup, the crane (or a girder stack), rock trucks, porta-potty, cones, barricade
  const flash=(mv&&Math.floor(t*4)%2)?'#fff2a8':'#ffb000';
  blit16('pickup',0,200,{pal:spal('pickup',{A:flash},night)});
@@ -454,41 +534,50 @@ function drawScene(v,t){
  blit16('cone',140,200,{pal:spal('cone')});blit16('cone',432,200,{pal:spal('cone')});
  if(st<5)blit16('barricade',220,200,{pal:spal('barricade',{A:night?(Math.sin(t*4)>0?'#ffb000':'#8a6a00'):'#ffd400'})});
  // ---- crew (base 200), then extras (Andy etc.)
- let i=0;for(const p of v.party){if(p.alive===false)continue;if(p.name==='Joe'&&fa>0)continue;const bob=(mv&&Math.floor(t*4+i)%2)?-2:0;const k=crewKind(p,i);blit16(k,132+i*13,200+bob,{pal:spal(k,crewPal16(p))});i++;}
- v.extras.forEach((e,j)=>{const k=crewKind(e,j+2);blit16(k,e.x*2,200,{pal:spal(k,crewPal16(e))});});
+ let i=0;for(const p of v.party){if(p.alive===false)continue;if(p.name==='Joe'&&fa>0)continue;const bob=mv?((Math.floor(t*4+i)%2)?-2:0):(Math.sin(t*(1.1+(i%3)*.25)+i*1.7)>.55?-1:0);const sip=!mv&&!p.clip&&!p.tie&&Math.sin(t*0.37+i*2.1)>0.9;const k=sip?'person_sip':crewKind(p,i);blit16(k,132+i*13,200+(sip?0:bob),{pal:spal(k,crewPal16(p))});i++;}
+ v.extras.forEach((e,j)=>{const k=crewKind(e,j+2);const bob=mv?0:(Math.sin(t*(1.2+(j%2)*.3)+j*2.3+.9)>.55?-1:0);blit16(k,e.x*2,200+bob,{pal:spal(k,crewPal16(e))});});
  // ---- night: additive lights (crane tip work light, headlights, dozer lamp, barricade flasher, moon glow)
  if(night){
-  if(tipX!==null){beam16([[tipX+1,30],[tipX-90,212],[tipX+70,212]],'#fff1b8',.16);glow16(tipX+1,26,1,10,'#fff2a8',.5);}
-  beam16([[64,182],[150,172],[150,204]],'#ffe9a0',.16);glow16(63,184,1,5,'#fff2a8',.6);
-  if(fx!==null&&fx<330)beam16([[fx*2+64,170],[fx*2+150,160],[fx*2+150,192]],'#ffe9a0',.14);
-  if(dx!==null)beam16([[dx+46,150],[dx+110,140],[dx+110,190]],'#ffe9a0',.12);
-  if(truckX.length){ctx.save();ctx.beginPath();ctx.rect(420*PX,0,220*PX,372*PX);ctx.clip();for(const x of truckX){beam16([[x,184],[x-70,174],[x-70,204]],'#ffe9a0',.14);glow16(x+1,185,1,4,'#fff2a8',.6);}ctx.restore();}
+  if(tipX!==null){beam16([[tipX+1,30],[tipX-90,212],[tipX+70,212]],'#fff1b8',.16);glow16(tipX+1,26,1,10,'#fff2a8',.5);pool16(tipX-10,208,80,10,'#fff1b8',.22);}
+  beam16([[64,182],[150,172],[150,204]],'#ffe9a0',.16);glow16(63,184,1,5,'#fff2a8',.6);pool16(138,201,34,5,'#ffe9a0',.26);
+  if(fx!==null&&fx<330){beam16([[fx*2+64,170],[fx*2+150,160],[fx*2+150,192]],'#ffe9a0',.14);pool16(fx*2+140,188,28,4,'#ffe9a0',.2);}
+  if(dx!==null){beam16([[dx+46,150],[dx+110,140],[dx+110,190]],'#ffe9a0',.12);pool16(dx+104,187,26,4,'#ffe9a0',.18);}
+  if(truckX.length){ctx.save();ctx.beginPath();ctx.rect(420*PX,0,220*PX,372*PX);ctx.clip();for(const x of truckX){beam16([[x,184],[x-70,174],[x-70,204]],'#ffe9a0',.14);glow16(x+1,185,1,4,'#fff2a8',.6);pool16(x-58,201,30,5,'#ffe9a0',.22);}ctx.restore();}
   if(st<5&&Math.sin(t*4)>0)glow16(232,182,1,8,'#ffb000',.5);
   glow16(584,38,12,44,'#f3f0d8',.22);}
  // ---- weather
- if(v.weather==='Snow'){TREES.forEach((tr,i)=>{const s=SPR16[TK[i%3]];P(tr.x*2+Math.floor(s.w/2)-2,(tr.y+8)*2-s.h+3,4,1,'#ffffff');});
-  for(const f of FLAKES)for(let c=0;c<2;c++){const fx0=(f.x*2+c*320+t*16*f.v)%640,fy0=(f.y*2+c*186+t*50*f.v)%372;P(fx0,fy0,1,1,f.v>1?'#ffffff':C.snowSh);}}
+ if(v.weather==='Snow'){for(const f of FLAKES)for(let c=0;c<2;c++){const fx0=(f.x*2+c*320+t*16*f.v+Math.sin(t*1.3+f.y)*3)%640,fy0=(f.y*2+c*186+t*50*f.v)%372;P(fx0,fy0,2,2,f.v>1?'#ffffff':C.snowSh);}}
  if(v.weather==='Rain'||v.weather==='Sideways rain'){const sl=v.weather==='Rain'?2:8;for(const f of FLAKES)for(let c=0;c<2;c++){const rx=(f.x*2+c*320+t*80*f.v*sl/2)%640,ry=(f.y*2+c*186+t*240*f.v)%372;L(rx,ry,rx+sl,ry+6,'#9fc7ff',0.5);}}
- if(v.weather==='Smoke'){ctx.globalAlpha=.12;P(0,0,640,372,'#ff8a2a');ctx.globalAlpha=.25;for(let i=0;i<3;i++)P(((i*220+t*6)%(640+120))-60,144+i*8,100,6,'#d68a3c');ctx.globalAlpha=1;}
- }finally{PX=4;}
+ if(smoke){ctx.save();ctx.globalCompositeOperation='multiply';ctx.globalAlpha=night?.2:.3;ctx.fillStyle='#d2a878';ctx.fillRect(0,172*PX,640*PX,200*PX);ctx.restore();   // grey-orange desaturating wash over the ground
+  ctx.globalAlpha=night?.05:.1;P(0,0,640,372,'#e0a060');ctx.globalAlpha=.18;for(let i=0;i<4;i++){const sx=((i*190+t*(5+i))%(640+160))-80,sy=130+i*14+Math.sin(t*.4+i)*3;P(sx,sy,120,4,'#e8c8a0');P(sx+20,sy+4,80,3,'#e8c8a0');}ctx.globalAlpha=1;}
+ }finally{PX=4;TERRAIN16.opts.smoke=false;}   // smoke bakes are for the main scene only; the mini-games' pick-grid skies stay clear
 }
-function viewFromState(o){return Object.assign({km:S.km,night:S.pace===2,weather:S.weather,trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:S.party,graves:S.graves,moving:S.moving,extras:S.extras,joeAway:S.joeAway,joeLeftAt:S.joeLeftAt,joeRetAt:S.joeRetAt,joeAlive:joeAlive()},o||{});}
+function viewFromState(o){const rs=S.arcade?[]:roadside();return Object.assign({km:S.km,night:S.pace===2,weather:S.weather,trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:S.party,graves:S.graves.concat(rs.map(g=>({name:g.name,epi:g.epi,past:true}))),moving:S.moving,extras:S.extras,joeAway:S.joeAway,joeLeftAt:S.joeLeftAt,joeRetAt:S.joeRetAt,joeAlive:joeAlive()},o||{});}
 
 // ---------------- mini-games ----------------
 // Drawn at PX=8 on a 160x93 logical grid (same 1280x744 scene area). Update happens inside the draw using DT.
 let DT=0,lastMs=0;const KEYS=new Set();
 const MG_LOAD_TIME=60;
-function startMG(type){S.moving=false;S.played=S.played||{};S.played[type]=(S.played[type]||0)+1;S.mg={type,phase:'intro',pointerDown:false,target:null};
- if(type==='load'){Object.assign(S.mg,{s:0,dir:1,omega:0.75,full:true,loads:0,trucks:0,spills:0,timeLeft:MG_LOAD_TIME,rocks:[],truckX:72,leaving:0,arriving:0,flash:0,flashTxt:''});}
- else if(type==='blast'){const band=[];for(let i=0;i<8;i++){const c=18+Math.round(Math.random()*10);band.push([c-4,c+4]);}Object.assign(S.mg,{i:0,ch:0,dir:1,speed:26,charges:[],kind:[],band,parts:[],flash:0,flashTxt:'',t:0});}
- else if(type==='paper'){Object.assign(S.mg,{real:0,bs:0,shred:0,shredReal:0,timeLeft:30,doc:null,docLife:3.2,fly:0,flyDir:1,flash:0,flashTxt:''});}
- else if(type==='phone'){Object.assign(S.mg,{good:0,bad:0,missed:0,timeLeft:60,call:null,callLife:7,gap:0.3,flash:0,flashTxt:''});}
- else if(type==='pump'){Object.assign(S.mg,{wl:80,placed:0,placeT:0,primed:true,primeTaps:0,strokeT:performance.now()/1000,spray:0,handle:0,raining:false,rainT:4,timeLeft:45,dry:true,flash:0,flashTxt:''});}
- else if(type==='pick'){Object.assign(S.mg,{sets:0,misses:0,errs:[],cx:80,flash:0,flashTxt:'',t:0,lastErr:0});newGirder(S.mg);S.mg.phase='intro';}
- else{const design=[],ground=[];for(let x=0;x<160;x++){const d=62+Math.round(5*Math.sin(x/23)+2*Math.sin(x/7));design.push(d);let b=Math.round(Math.random()*7);if(Math.random()<0.1)b=-2;ground.push(d-b);}
-  Object.assign(S.mg,{design,ground,gx:-30,by:design[0]-5,dust:[],cutCols:0});}
- S.screen='mgIntro';}
-function mgFinish(text,fx,kmBonus){if(S.arcade){S.mg=null;S.ret='mgMenu';show({t:text});return;}S.week++;S.loss+=burn();applyFx(fx);
+// Level (WarioWare's two dials, G5): the n-th play of a game is faster, and from the third play it adds a decoy.
+// Practice beat (G6): the first MG_WARM seconds of every game are a free run; then the state resets and it counts.
+const MG_WARM=5;
+function mgInit(m,type,lvl){const L=lvl-1;m.lvl=lvl;
+ if(type==='load'){Object.assign(m,{s:0,dir:1,omega:0.75*(1+0.12*L),full:true,loads:0,trucks:0,spills:0,timeLeft:MG_LOAD_TIME,rocks:[],truckX:72,leaving:0,arriving:0,flash:0,flashTxt:''});}
+ else if(type==='blast'){const band=[];const hw=Math.max(2,4-Math.min(2,L));for(let i=0;i<8;i++){const c=18+Math.round(Math.random()*10);band.push([c-hw,c+hw]);}Object.assign(m,{i:0,ch:0,dir:1,speed:26*(1+0.15*L),charges:[],kind:[],band,parts:[],flash:0,flashTxt:'',t:0});}
+ else if(type==='paper'){Object.assign(m,{real:0,bs:0,shred:0,shredReal:0,timeLeft:30,doc:null,docLife:3.2*Math.pow(0.88,L),fly:0,flyDir:1,flash:0,flashTxt:'',decoy:L>=2});}
+ else if(type==='phone'){Object.assign(m,{good:0,bad:0,missed:0,timeLeft:60,call:null,callLife:7*Math.pow(0.9,L),gap:0.3,flash:0,flashTxt:''});}
+ else if(type==='pump'){Object.assign(m,{wl:80,placed:0,placeT:0,primed:true,primeTaps:0,strokeT:performance.now()/1000,spray:0,handle:0,raining:false,rainT:4,timeLeft:45,dry:true,flash:0,flashTxt:'',rainBoost:0.8*L});}
+ else if(type==='pick'){Object.assign(m,{sets:0,misses:0,errs:[],cx:80,flash:0,flashTxt:'',t:0,lastErr:0,extraA:4*L});newGirder(m);}
+ else if(type==='pave'){Object.assign(m,{px:14,rx:-10,target:null,speed:4*(1+0.12*L),temp:[],dens:[],shoved:[],stop:0,stopT:6+Math.random()*4,hits:0,timeLeft:65,flash:0,flashTxt:'',done:0,smoke:[]});}
+ else{const design=[],ground=[];for(let x=0;x<160;x++){const d=62+Math.round(5*Math.sin(x/23)+2*Math.sin(x/7));design.push(d);let b=Math.round(Math.random()*7);if(Math.random()<0.1+0.08*L)b=-2;ground.push(d-b);}
+  Object.assign(m,{design,ground,gx:-30,by:design[0]-5,dust:[],cutCols:0,gspeed:6.8*(1+0.15*L)});}}
+function startMG(type){S.moving=false;S.played=S.played||{};S.played[type]=(S.played[type]||0)+1;S.mg={type,phase:'intro',pointerDown:false,target:null,warm:MG_WARM};
+ mgInit(S.mg,type,S.played[type]);S.screen='mgIntro';}
+function mgRestart(forReal){const m=S.mg;if(!m)return;const keep={type:m.type,pointerDown:m.pointerDown,target:m.target,warm:forReal?0:m.warm,lvl:m.lvl};mgInit(m,m.type,m.lvl);Object.assign(m,keep);m.phase=m.type==='pick'?'swing':'play';if(forReal){m.flash=1.4;m.flashTxt='FOR REAL NOW';}}
+// screen shake + white hit flash (juice)
+let SHAKE=0,SHAKET=0,FLASHA=0;function shake(a,d){SHAKE=Math.max(SHAKE,a);SHAKET=Math.max(SHAKET,d);}function hitFlash(a){FLASHA=Math.max(FLASHA,a);}
+function mgFinish(text,fx,kmBonus){if(S.mg&&S.mg.warm>0){mgRestart(false);return;}
+ if(S.arcade){S.mg=null;S.ret='mgMenu';show({t:text});return;}S.week++;S.loss+=burn();applyFx(fx);
  if(kmBonus>0){const nx=MILESTONES[S.msIndex];S.km=Math.min(S.km+kmBonus,nx?nx.km-0.01:6);}
  S.mg=null;S.ret='travel';show({t:text});}
 // ---- Load the rock trucks ----
@@ -500,9 +589,9 @@ function excavator(x,base){shadowRow(x+1,24,base);P(x,base-6,26,6,C.grey5);P(x,b
 function dumpBucket(){const m=S.mg;if(!m||m.phase!=='play'||m.leaving>0||m.arriving>0||!m.full)return;
  const [bx,by]=bucketPos(m.s);m.full=false;
  if(m.s>=0.84){m.loads++;for(let i=0;i<10;i++)m.rocks.push({x:bx-2+Math.random()*5,y:by,vy:10+Math.random()*10,floor:76-m.loads*1.2,c:i%3?C.dirt3:C.grey});
-  m.flash=0.6;m.flashTxt='LOADED';
+  m.flash=0.6;m.flashTxt='LOADED';hitFlash(0.2);
   if(m.loads>=6){m.leaving=0.7;m.trucks++;}}
- else{m.spills++;m.flash=0.8;m.flashTxt='SPILL!';for(let i=0;i<10;i++)m.rocks.push({x:bx-3+Math.random()*7,y:by,vy:10+Math.random()*10,floor:85,c:i%2?C.grey3:C.grey2});
+ else{m.spills++;m.flash=0.8;m.flashTxt='SPILL!';shake(4,0.25);for(let i=0;i<10;i++)m.rocks.push({x:bx-3+Math.random()*7,y:by,vy:10+Math.random()*10,floor:85,c:i%2?C.grey3:C.grey2});
   if(m.spills>=5){m.phase='over';}}}
 function drawMGLoad(t){const m=S.mg;PX=8;try{
  if(m.phase==='play'){m.timeLeft-=DT;if(m.timeLeft<=0){m.timeLeft=0;m.phase='over';}
@@ -528,7 +617,7 @@ function endLoad(){const m=S.mg;const n=m.trucks;let text,fx={},bonus=0.05*n;
 // ---- Cut the grade ----
 function drawMGGrade(t){const m=S.mg;PX=8;try{
  const bxCol=()=>Math.round(m.gx+16);
- if(m.phase==='play'){const prev=bxCol();m.gx+=6.8*DT;
+ if(m.phase==='play'){const prev=bxCol();m.gx+=(m.gspeed||6.8)*DT;
   const col=Math.max(0,Math.min(159,bxCol()));const dmin=m.design[col]-14,dmax=m.design[col]+7;
   let tgt=m.target;if(KEYS.has('ArrowUp')||KEYS.has('w'))tgt=m.by-8;if(KEYS.has('ArrowDown')||KEYS.has('s'))tgt=m.by+8;
   if(tgt!==null&&tgt!==undefined){const d=tgt-m.by;m.by+=Math.sign(d)*Math.min(Math.abs(d),34*DT);}
@@ -545,7 +634,7 @@ function drawMGGrade(t){const m=S.mg;PX=8;try{
  txt(TOUCH?'Drag up/down to set the blade. Ride the yellow string line.':'UP/DOWN sets the blade. Ride the yellow string line.',16,40,26,'#ffd400');ctx.restore();
  if(m.phase==='over')endGrade(good,high,low);}
 function endGrade(good,high,low){const pct=Math.round(good/160*100);let text,fx={},bonus=0;
- if(pct>=80){text=`${pct}% on grade. Mel walks the whole ${high} high spot${high===1?'':'s'} and ${low} overcut${low===1?'':'s'} with his own tape, finds nothing to say, and leaves. Lenny is quietly proud.`;fx={health:4};bonus=0.15;}
+ if(pct>=80){text=`${pct}% on grade. ${high+low?'Mel walks '+(high?high+' high spot'+(high===1?'':'s'):'')+(high&&low?' and ':'')+(low?low+' overcut'+(low===1?'':'s'):'')+' with his own tape, finds nothing to say, and leaves.':'Mel walks the whole grade with his own tape, finds nothing, and leaves without a word.'} Lenny is quietly proud.`;fx={health:4};bonus=0.15;}
  else if(pct>=55){text=`${pct}% on grade. ${high} high spots, ${low} overcuts. Mel writes "acceptable" with a question mark. Louie fixes the rest with the small dozer and does not mention it.`;fx={health:1};bonus=0.06;}
  else{text=`${pct}% on grade. Mel's tape came out. Then his phone. Then Andy's phone. Re-grade: one week, and Louie is telling everyone he could have done it blindfolded.`;fx={weeks:1,loss:60000,health:-3};}
  mgFinish(text,fx,bonus);}
@@ -555,7 +644,7 @@ function lockCharge(){const m=S.mg;if(!m||m.phase!=='play'||m.i>=8)return;m.char
  if(m.i>=8){m.phase='count';m.t=0;}}
 function drawMGBlast(t){const m=S.mg;PX=8;try{
  if(m.phase==='play'){m.ch+=m.dir*m.speed*DT;if(m.ch>=40){m.ch=40;m.dir=-1;}if(m.ch<=0){m.ch=0;m.dir=1;}}
- if(m.phase==='count'){m.t+=DT;if(m.t>1.6){m.phase='blast';m.t=0;
+ if(m.phase==='count'){m.t+=DT;if(m.t>1.6){m.phase='blast';m.t=0;shake(12,0.7);hitFlash(0.8);
    for(let i=0;i<8;i++){const hx=70+i*11;const k=m.kind[i];const n=k==='over'?26:k==='good'?12:3;
     for(let j=0;j<n;j++){const over=k==='over';m.parts.push({x:hx-4+Math.random()*9,y:40+Math.random()*40,vx:over?-(40+Math.random()*50):-(6+Math.random()*12),vy:over?-(30+Math.random()*30):-(10+Math.random()*15),c:j%2?C.grey:C.grey3,s:over?2:1});}}}}
  if(m.phase==='blast'){m.t+=DT;for(const p of m.parts){p.vy+=70*DT;p.x+=p.vx*DT;p.y+=p.vy*DT;if(p.y>84){p.y=84;p.vy=0;p.vx*=0.3;}}if(m.t>2.6)m.phase='over';}
@@ -578,14 +667,14 @@ function endBlast(g,u,o){let text,fx={},bonus=0;
  mgFinish(text,fx,bonus);}
 // ---- Set the girders (crane pick, Joe watching) ----
 function startLower(){const m=S.mg;if(!m||m.phase!=='swing')return;m.phase='lower';}
-function newGirder(m){m.gy=20;m.A=16+m.sets*5+m.misses*3;m.w=1.2+m.sets*0.3;m.ph=Math.random()*6;m.gust=2+Math.random()*2;}
+function newGirder(m){m.gy=20;m.A=16+m.sets*5+m.misses*3+(m.extraA||0);m.w=1.2+m.sets*0.3;m.ph=Math.random()*6;m.gust=2+Math.random()*2;}
 function drawMGPick(t){const m=S.mg;PX=4;try{
- if(m.phase==='swing'||m.phase==='lower'){m.ph+=m.w*DT;m.gust-=DT;if(m.gust<=0){m.A=Math.min(30,m.A+3+Math.random()*6);m.gust=2+Math.random()*3;m.flash=0.5;m.flashTxt='GUST';}
+ if(m.phase==='swing'||m.phase==='lower'){m.ph+=m.w*DT;m.gust-=DT;if(m.gust<=0){m.A=Math.min(30,m.A+3+Math.random()*6);m.gust=2+Math.random()*3;m.flash=0.5;m.flashTxt='GUST';shake(2,0.3);}
   if(m.phase==='swing')m.A=Math.max(6,m.A-1.2*DT);else{m.A*=Math.max(0,1-0.45*DT);m.gy+=15*DT;
    if(m.gy>=53){m.gy=53;const err=m.cx-80;m.lastErr=err;
-    if(Math.abs(err)<=3){m.sets++;m.flash=0.9;m.flashTxt='SET';m.phase='rest';m.t=0;m.errs.push(Math.abs(err));}
+    if(Math.abs(err)<=3){m.sets++;m.flash=0.9;m.flashTxt='SET';hitFlash(0.25);m.phase='rest';m.t=0;m.errs.push(Math.abs(err));}
     else if(Math.abs(err)<=7){m.sets++;m.flash=0.9;m.flashTxt='CLOSE. JOE HAS A BAR.';m.phase='rest';m.t=0;m.errs.push(Math.abs(err));}
-    else{m.misses++;m.flash=1.2;m.flashTxt='MISS';m.phase='drop';m.t=0;}}}}
+    else{m.misses++;m.flash=1.2;m.flashTxt='MISS';m.phase='drop';m.t=0;shake(6,0.45);}}}}
  m.cx=80+m.A*Math.sin(m.ph);
  if(m.phase==='rest'){m.t+=DT;if(m.t>1){if(m.sets>=3)m.phase='over';else{newGirder(m);m.phase='swing';}}}
  if(m.phase==='drop'){m.t+=DT;m.gy+=22*DT;if(m.t>1.3){if(m.misses>=2)m.phase='over';else{newGirder(m);m.phase='swing';}}}
@@ -621,9 +710,10 @@ function endPick(){const m=S.mg;const avg=m.errs.length?m.errs.reduce((a,b)=>a+b
 // ---- Harsh's ATP package (submit the cut sheets, shred the nonsense) ----
 const PAPER_REAL=["CUT SHEET   Sta 1+240 to 1+320   CL cut 0.85 m","CUT SHEET   Sta 2+060   Ditch invert 812.40","CUT SHEET   Sta 3+100 to 3+180   Fill 1.20 m","CUT SHEET   Sta 4+420   Subgrade 809.15","CUT SHEET   Sta 0+980   Rock cut 3.40 m","CUT SHEET   Sta 5+200 to 5+260   Crossfall 2%","CUT SHEET   Sta 2+700   Abutment seat 815.02","CUT SHEET   Sta 1+860   Culvert invert 811.70","CUT SHEET   Sta 3+640   Multiplate invert 810.05","CUT SHEET   Sta 5+900   Top of asphalt 808.60"];
 const PAPER_BS=["MENU   Golden Dragon   #14 Ginger Beef","TRAFFIC PLAN   Surrey, 2021   (no avalanche gates)","CONCRETE TESTS   Cylinder IDs from 2019","POSTCARD   from Calgary   (blank)","DAILY REPORT   'Bridge complete'   (it is not)","QA PACKAGE   400 copies of page 1","RECEIPT   Denny's, Revelstoke   $47.10","SPEC CLAUSE 7.9.4   (does not exist)","LINKEDIN DRAFT   'Humbled to announce'","TIM HORTONS ORDER   14 double-doubles","WCB FORM   'bad back'   (Louie, again)","QUANTITY SHEET   30,000 m3 rock   (it was 12,000)"];
-function newDoc(m){const real=Math.random()<0.55;m.doc={real,text:real?rnd(PAPER_REAL):rnd(PAPER_BS),x:-70,life:m.docLife};}
+const PAPER_DECOY=["CUT SHEET   Surrey job   Sta 9+900   (not this job)","CUT SHEET   Sta 2+060   Ditch invert 812.40   DRAFT, DO NOT ISSUE","CUT SHEET   Sta 14+200   (the highway is 6 km long)","CUT SHEET   Sta 3+100   Fill 1.20 m   signed: Harsh, for Lenny"];
+function newDoc(m){const real=Math.random()<0.55;const dec=!real&&m.decoy&&Math.random()<0.45;m.doc={real,text:real?rnd(PAPER_REAL):dec?rnd(PAPER_DECOY):rnd(PAPER_BS),x:-70,life:m.docLife};}
 function handleDoc(action){const m=S.mg;if(!m||m.phase!=='play'||!m.doc||m.doc.x<0)return;const d=m.doc;
- if(action==='submit'){if(d.real){m.real++;m.flash=0.5;m.flashTxt='SUBMITTED';}else{m.bs++;m.flash=0.8;m.flashTxt='MEL WILL SEE THAT';}}
+ if(action==='submit'){if(d.real){m.real++;m.flash=0.5;m.flashTxt='SUBMITTED';}else{m.bs++;m.flash=0.8;m.flashTxt='MEL WILL SEE THAT';shake(4,0.3);}}
  else{if(d.real){m.shredReal++;m.flash=0.6;m.flashTxt="THAT WAS LENNY'S";}else{m.shred++;m.flash=0.4;m.flashTxt='SHREDDED';}}
  m.flyDir=action==='submit'?1:-1;m.fly=0.35;m.flyText=d.text;m.doc=null;m.docLife=Math.max(1.2,m.docLife*0.94);
  if(m.bs>=3){m.phase='over';}}
@@ -638,7 +728,7 @@ function drawMGPaper(t){const m=S.mg;PX=8;try{
  }finally{PX=4;}
  ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
  txt(`SUBMITTED ${m.real}   NONSENSE SENT ${m.bs}/3   SHREDDED LENNY'S ${m.shredReal}   ATP DEADLINE ${Math.ceil(m.timeLeft)}s`,16,8,30,'#fff');
- if(m.doc&&m.doc.x>=0){txt(m.doc.text,640,296,34,'#222','center');}
+ if(m.doc&&m.doc.x>=0){ctx.save();ctx.shadowColor='transparent';txt(m.doc.text,640,296,34,'#222','center');ctx.restore();}
  if(m.flash>0)txt(m.flashTxt,640,420,70,m.flashTxt==='SUBMITTED'||m.flashTxt==='SHREDDED'?'#00ff66':'#ff4040','center');ctx.restore();
  if(m.phase==='over')endPaper();}
 function endPaper(){const m=S.mg;let text,fx={},bonus=0;
@@ -686,7 +776,7 @@ const CALLS=[
  {c:'Mel (MOTI)',q:"Your crossfall is two percent.",a:["Yes, Mel. That's the spec.","It's three.","Harsh says it's fine."]},
 ];
 function newCall(m){const it=rnd(CALLS);const idx=[0,1,2].sort(()=>Math.random()-0.5);m.call={c:it.c,q:it.q,a:idx.map(i=>it.a[i]),correct:idx.indexOf(0),life:m.callLife,max:m.callLife};}
-function answerCall(i){const m=S.mg;if(!m||m.phase!=='play'||!m.call)return;if(i===m.call.correct){m.good++;m.flash=0.4;m.flashTxt='HANDLED';}else{m.bad++;m.flash=0.6;m.flashTxt=rnd(['MEL HEARD THAT','ANDY HEARD THAT','THAT WENT TO VOICEMAIL. THE WRONG VOICEMAIL.']);}
+function answerCall(i){const m=S.mg;if(!m||m.phase!=='play'||!m.call)return;if(i===m.call.correct){m.good++;m.flash=0.4;m.flashTxt='HANDLED';}else{m.bad++;m.flash=0.6;m.flashTxt=rnd(['MEL HEARD THAT','ANDY HEARD THAT','THAT WENT TO VOICEMAIL. THE WRONG VOICEMAIL.']);shake(3,0.25);}
  m.callLife=Math.max(3,m.callLife*0.95);m.call=null;m.gap=0.35;}
 function drawMGPhone(t){const m=S.mg;
  if(m.phase==='play'){m.timeLeft-=DT;if(m.timeLeft<=0){m.timeLeft=0;m.phase='over';}if(m.flash>0)m.flash-=DT;
@@ -695,7 +785,7 @@ function drawMGPhone(t){const m=S.mg;
  drawScene(viewFromState({moving:true}),t);
  renderMGPhone16(m,t);   // phone body + glass panel (scenes/Phone16.js)
  ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
- txt(`ANSWERED ${m.good}   WRONG ${m.bad}   MISSED ${m.missed}   STILL WAITING ${Math.max(0,100-m.good-m.bad-m.missed)}   ${Math.ceil(m.timeLeft)}s`,16,8,30,'#fff');ctx.restore();
+ txt(`ANSWERED ${m.good}   WRONG ${m.bad}   MISSED ${m.missed}   ${Math.ceil(m.timeLeft)}s`,16,8,30,'#fff',null,true);ctx.restore();
  if(m.call){const c=m.call;txt('INCOMING:  '+c.c.toUpperCase(),640,100,40,'#ffd400','center');
   let y=160;for(const l of wrap(c.q,52)){txt(l,640,y,40,'#fff','center');y+=40;}y+=30;
   c.a.forEach((a,i)=>{const ls=wrap(a,58);const h=ls.length*30+22;ctx.strokeStyle='#888';ctx.lineWidth=3;ctx.strokeRect(170,y,940,h);txt((i+1)+'.',190,y+10,32,'#ffd400');let yy=y+10;for(const l of ls){txt(l,235,yy,32,'#fff');yy+=30;}HIT.push({x0:170,x1:1110,y0:y,y1:y+h,key:String(i+1)});y+=h+14;});
@@ -703,10 +793,11 @@ function drawMGPhone(t){const m=S.mg;
  else txt('...ringing...',640,380,50,'#bdbdbd','center');
  if(m.flash>0){ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;txt(m.flashTxt,640,640,m.flashTxt.length>14?34:60,m.flashTxt==='HANDLED'?'#00ff66':'#ff4040','center');ctx.restore();}
  if(m.phase==='over')endPhone();}
-function endPhone(){const m=S.mg;let text,fx={},bonus=0;const left=Math.max(0,100-m.good-m.bad-m.missed);
- if(m.bad>=8){text=`${m.good} calls handled, ${m.bad} handled badly, ${m.missed} missed. Andy heard about three of the bad ones. ${left} calls went to voicemail. Scott has never checked his voicemail.`;fx={loss:60000,health:-3};}
- else if(m.good>=22&&m.bad<=2){text=`${m.good} calls handled in a minute, ${m.bad} wrong, ${m.missed} missed. ${left} still waiting. Scott says that's a quiet morning. Mel called back to say nothing, which is a first.`;fx={health:4};bonus=0.1;}
- else{text=`${m.good} handled, ${m.bad} wrong, ${m.missed} missed, ${left} still ringing. Scott put the phone in the glovebox and went to look at the bridge. The phone is still ringing in the glovebox.`;fx={loss:m.bad*8000,health:m.missed>5?-2:1};bonus=m.good>=12?0.05:0.02;}
+function endPhone(){const m=S.mg;let text,fx={},bonus=0;
+ if(m.bad>=6){text=`${m.good} calls handled, ${m.bad} handled badly, ${m.missed} missed. Andy heard about three of the bad ones. ${m.bad*8000>0?'$'+(m.bad*8000).toLocaleString()+' in make-good, ':''}and Scott has never checked his voicemail.`;fx={loss:60000+m.bad*8000,health:-3};}
+ else if(m.good>=18&&m.bad<=2){text=`${m.good} calls handled in a minute, ${m.bad} wrong, ${m.missed} missed. Scott says that's a quiet morning. Mel called back to say nothing, which is a first.`;fx={health:4};bonus=0.1;}
+ else if(m.good>=10){text=`${m.good} handled, ${m.bad} wrong, ${m.missed} missed. Scott put the phone in the glovebox and went to look at the bridge. The phone is still ringing in the glovebox.`;fx={loss:m.bad*8000,health:m.missed>5?-2:1};bonus=0.05;}
+ else{text=`${m.good} handled, ${m.bad} wrong, ${m.missed} missed. The phone goes back to Scott. Scott looks at the call log, then at you, then at the bridge.`;fx={loss:m.bad*8000,health:-1};bonus=0.02;}
  mgFinish(text,fx,bonus);}
 // ---- Adam's dewatering (keep the culvert trench dry while the crew places sections) ----
 function pumpStroke(){const m=S.mg;if(!m||m.phase!=='play')return;const now=performance.now()/1000;
@@ -717,9 +808,9 @@ function drawMGPump(t){const m=S.mg;PX=8;try{
  const now=performance.now()/1000;
  if(m.phase==='play'){m.timeLeft-=DT;if(m.timeLeft<=0){m.timeLeft=0;m.phase='over';}
   m.rainT-=DT;if(m.rainT<=0){m.raining=!m.raining;m.rainT=m.raining?2.5+Math.random()*2:4+Math.random()*4;}
-  const inflow=1.6+(m.raining?3.2:0)+m.placed*0.25;m.wl-=inflow*DT;
+  const inflow=1.6+(m.raining?3.2+(m.rainBoost||0):0)+m.placed*0.25;m.wl-=inflow*DT;
   if(m.primed&&now-m.strokeT>1.8){m.primed=false;m.primeTaps=0;m.flash=0.8;m.flashTxt='LOST PRIME. THREE TAPS.';}
-  if(m.wl<=50){m.wl=50;m.phase='flood';}
+  if(m.wl<=50){m.wl=50;m.phase='flood';shake(6,0.5);}
   const dry=m.wl>=78;m.dry=dry;if(dry){m.placeT+=DT;if(m.placeT>=4){m.placeT=0;m.placed++;m.flash=0.5;m.flashTxt='SECTION '+m.placed+' IN';if(m.placed>=6)m.phase='over';}}
   if(m.spray>0)m.spray-=DT;if(m.handle>0)m.handle-=DT*4;if(m.flash>0)m.flash-=DT;}
  // scene (16-bit renderer, scenes/Pump16.js)
@@ -735,8 +826,9 @@ function endPump(){const m=S.mg;let text,fx={},bonus=0;
  else if(m.placed>=6){text="Six sections in, trench dry, crew out. Adam's crew lit a fire to warm up and were told to put it out. They did not. Mel arrived, looked in the trench, and left.";fx={health:3};bonus=0.12;}
  else{text=`${m.placed} of 6 sections in before dark. The rest tomorrow, if the rain stops. It will not stop. Adam has named the pump.`;fx={health:m.placed>=3?1:-1};bonus=0.02*m.placed;}
  mgFinish(text,fx,bonus);}
-const MG_SCREEN={load:'mgLoad',grade:'mgGrade',blast:'mgBlast',pick:'mgPick',paper:'mgPaper',phone:'mgPhone',pump:'mgPump'};const MG_DRAW={load:drawMGLoad,grade:drawMGGrade,blast:drawMGBlast,pick:drawMGPick,paper:drawMGPaper,phone:drawMGPhone,pump:drawMGPump};
-const MG_INTRO={phone:"SCOTT'S PHONE.  Scott: 'Hundred calls since six. You take it. I'm going to look at the bridge.'\nCalls come in one after another: Mel, Andy, Lenny, Louie, Tanya, Harsh, Adam, the plant, the truckers. Tap the answer a site super would actually give (or press 1, 2, 3) before the bar runs out. Wrong answers get back to Andy. Sixty seconds.",
+const MG_SCREEN={load:'mgLoad',grade:'mgGrade',blast:'mgBlast',pick:'mgPick',paper:'mgPaper',phone:'mgPhone',pump:'mgPump',pave:'mgPave'};const MG_DRAW={load:drawMGLoad,grade:drawMGGrade,blast:drawMGBlast,pick:drawMGPick,paper:drawMGPaper,phone:drawMGPhone,pump:drawMGPump,pave:drawMGPave};const MG_TYPES_MENU=['load','blast','pick','grade','paper','phone','pump','pave'];
+const MG_INTRO={phone:"SCOTT'S PHONE.  Scott: 'It hasn't stopped since six. You take it. I'm going to look at the bridge.'\nCalls come in one after another: Mel, Andy, Lenny, Louie, Tanya, Harsh, Adam, the plant, the truckers. Tap the answer a site super would actually give (or press 1, 2, 3) before the bar runs out. Wrong answers get back to Andy. Sixty seconds; eighteen right with two wrong at most is a quiet morning.",
+ pave:"ROLL THE MAT.  Lenny: 'Paver's laying. Roller's yours. Stay in the window.'\nThe paver lays hot asphalt and drives itself. You drive the roller: hold LEFT/RIGHT (or drag sideways). Compact the mat while it is in the GREEN window behind the paver: too close and the mat is too hot and shoves, too far back and it has gone cold. When a truck backs into the hopper the paver stops; stop with it. Do not hit the paver.",
  pump:"ADAM'S DEWATERING.  Adam: 'Culvert sections are here, trench is wet, pump's a bit temperamental.'\nTAP (or any key) to work the pump handle and keep the water below the yellow bed line so the crew can place. Six sections. Rain comes in bursts. Stop tapping for two seconds and the pump loses prime: three taps to get it back. Fill the trench to the top and it floods.",
  paper:"HARSH'S ATP PACKAGE.  Harsh: 'The ATP package is due at noon. I have... most of it.' It is 11:20.\nPapers land on the desk one at a time. Real cut sheets go OUT to Mel (tap the right side, or RIGHT arrow). Harsh's nonsense goes in the SHREDDER (tap the left side, or LEFT arrow). Three pieces of nonsense reach Mel and the ATP is denied. Thirty seconds.",
  blast:"BLAST THE ROCK CUT.  Lenny: 'Holes are drilled. Powder truck's here. You're loading.'\nThe charge in each hole rises and falls. TAP (or SPACE) to lock it inside the green band. Too light leaves toe for the hoe ram. Too heavy is flyrock, and the pickup is parked right there. Eight holes, then Tanya blows the horn.",
@@ -744,17 +836,58 @@ const MG_INTRO={phone:"SCOTT'S PHONE.  Scott: 'Hundred calls since six. You take
  load:"LOAD THE ROCK TRUCKS.  Lenny: 'The pit's backed up. Get in the excavator.'\nThe bucket swings from the pile to the truck. TAP (or SPACE) to dump when the bucket is over the box, when the bar turns green. Six buckets fills a truck. Spill five and Tanya shuts you down. Sixty seconds.",
  grade:"CUT THE GRADE.  Lenny: 'Grade's yours. Don't embarrass me in front of Mel.'\nThe grader drives itself. You control the blade: drag up and down on the screen (or UP/DOWN keys). Shave the ground down to the yellow string line. High spots are red, overcuts are orange, and Mel counts both."};
 
+// ---- Roll the mat (paving): keep the roller in the temperature window behind the paver ----
+// 160x93 logical grid. Paver at m.px moving right; mat columns behind it carry a temperature that cools with time.
+// Roller at m.rx (left edge, 14 wide). Columns under the roller gain density while 85..135 C; over 135 C they shove.
+const PAVE={w0:85,w1:135,shove:142,lay:150,cool:4.2,rw:14,pw:22};
+function drawMGPave(t){const m=S.mg;PX=8;try{
+ if(m.phase==='play'){m.timeLeft-=DT;if(m.timeLeft<=0){m.timeLeft=0;m.phase='over';}
+  // paver: lays mat, pauses for truck changes
+  if(m.stop>0){m.stop-=DT;}else{m.stopT-=DT;if(m.stopT<=0){m.stop=1.8;m.stopT=8+Math.random()*4;m.flash=0.8;m.flashTxt='TRUCK IN THE HOPPER. HOLD.';}
+   if(m.px<172){const nx=m.px+m.speed*DT;for(let c=Math.floor(m.px);c<Math.floor(nx);c++)if(c>=0&&c<160&&m.temp[c]===undefined){m.temp[c]=PAVE.lay;m.dens[c]=0;m.shoved[c]=false;}m.px=nx;}}
+  for(let c=0;c<160;c++)if(m.temp[c]!==undefined&&m.temp[c]>20)m.temp[c]-=PAVE.cool*DT;
+  // roller: keys or drag, speed-limited; cannot pass the paver
+  let tgt=m.target;if(KEYS.has('ArrowLeft')||KEYS.has('a'))tgt=m.rx-20;if(KEYS.has('ArrowRight')||KEYS.has('d'))tgt=m.rx+20;
+  if(tgt!==null&&tgt!==undefined){const d=tgt-PAVE.rw/2-m.rx;m.rx+=Math.sign(d)*Math.min(Math.abs(d),16*DT);}
+  m.rx=Math.max(-10,m.rx);const lim=m.px-PAVE.rw;if(m.rx>lim){const pushing=tgt!==null&&tgt!==undefined&&tgt-PAVE.rw/2>lim;m.rx=lim;if(pushing&&(m.hitCd<=0||m.hitCd===undefined)){m.hits++;m.hitCd=1.5;m.flash=0.9;m.flashTxt='HIT THE PAVER';shake(5,0.3);}}
+  if(m.hitCd>0)m.hitCd-=DT;
+  let hot=false;for(let c=Math.floor(m.rx);c<Math.floor(m.rx+PAVE.rw);c++){if(c<0||c>=160||m.temp[c]===undefined)continue;const T=m.temp[c];
+   if(T>PAVE.shove){if(!m.shoved[c]){m.shoved[c]=true;hot=true;}}else if(T>=PAVE.w0&&T<=PAVE.w1&&!m.shoved[c]){m.dens[c]=Math.min(1,m.dens[c]+0.9*DT);}}
+  if(hot&&m.flash<=0){m.flash=0.5;m.flashTxt='TOO HOT. SHOVING.';shake(2,0.2);}
+  if(m.px>=172){const open=m.temp.some((T,c)=>T>=PAVE.w0&&!m.shoved[c]&&m.dens[c]<1);if(!open)m.phase='over';}
+  if(m.flash>0)m.flash-=DT;}
+ PX=4;renderMGPave16(m,t);
+ }finally{PX=4;}
+ let good=0,laid=0;for(let c=0;c<160;c++){if(m.temp[c]===undefined)continue;laid++;if(!m.shoved[c]&&m.dens[c]>=0.9)good++;}
+ ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;
+ txt(`DENSITY ${laid?Math.round(good/laid*100):0}%   SHOVED ${m.shoved.filter(Boolean).length}   PAVER HITS ${m.hits}   TIME ${Math.ceil(m.timeLeft)}s`,16,8,30,'#fff',null,true);
+ txt(TOUCH?'Drag sideways. Roll the mat while it is in the green window.':'LEFT/RIGHT drives the roller. Roll the mat while it is in the green window.',16,40,26,'#ffd400',null,true);
+ if(m.flash>0)txt(m.flashTxt,640,300,m.flashTxt.length>14?48:80,m.flashTxt.startsWith('TRUCK')?'#ffd400':'#ff4040','center',true);ctx.restore();
+ if(m.phase==='over')endPave(good,laid);}
+function endPave(good,laid){const m=S.mg;const pct=laid?Math.round(good/laid*100):0;const sh=m.shoved.filter(Boolean).length;let text,fx={},bonus=0;
+ if(m.hits>=3){text=`You hit the paver ${m.hits} times. The paver operator has gone to sit in his truck. Tanya has the roller keys. ${pct}% density, and a new screed.`;fx={weeks:1,loss:220000,health:-4};}
+ else if(pct>=85&&sh<=4){text=`${pct}% density, ${sh} shove mark${sh===1?'':'s'}. Mel's nuclear gauge agrees with you, which it has never done before. Lenny says 'yep'. That is the whole speech.`;fx={health:4};bonus=0.15;}
+ else if(pct>=60){text=`${pct}% density, ${sh} shove marks. Mel cores it, finds it 'adequate', and writes down the word 'marginal' next to a station you did not roll. Two cores to re-pave.`;fx={loss:40000,health:1};bonus=0.06;}
+ else{text=`${pct}% density. The mat went cold behind you and Mel's gauge reads like a phone number. Mill and re-pave: one week, and the asphalt plant bills for the tonnes.`;fx={weeks:1,loss:200000,health:-3};}
+ mgFinish(text,fx,bonus);}
 // ---------------- UI helpers ----------------
-function hud(){ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=0;ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;txt(`WEEK ${S.week}   KM ${S.km.toFixed(1)}/6   LOSS ${fmt(S.loss)}   DIESEL ${S.fuel.toLocaleString()} L   COFFEE ${S.coffee}   ${S.weather.toUpperCase()}`,16,8,28,'#fff');
- const m=MILESTONES[S.msIndex];txt(m?`NEXT: ${m.name.toUpperCase()} (KM ${m.km}, DEADLINE WEEK ${m.deadline})`:'SUBSTANTIAL COMPLETION. MEL HAS A LIST.',16,36,26,'#ffd400');ctx.restore();}
-function box(){P(0,SH,SW,240-SH,'#000');ctx.fillStyle='#000';ctx.fillRect(0,SH*PX,1280,960-SH*PX);ctx.strokeStyle='#fff';ctx.lineWidth=6;ctx.strokeRect(27,757,1226,186);ctx.lineWidth=2;ctx.strokeRect(39,769,1202,162);}
+function hud(){ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=0;ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;txt(`WEEK ${S.week}   KM ${S.km.toFixed(1)}/6   LOSS ${fmt(S.loss)}   DIESEL ${S.fuel.toLocaleString()} L   COFFEE ${S.coffee}   ${S.weather.toUpperCase()}`,16,8,28,'#fff',null,true);
+ const m=MILESTONES[S.msIndex];const tol=CFG.lateKill-S.blame;let line,col='#ffd400';
+ if(!m)line='SUBSTANTIAL COMPLETION. MEL HAS A LIST.';
+ else if(S.week>m.deadline){const late=S.week-m.deadline;line=`NEXT: ${m.name.toUpperCase()} (KM ${m.km})   ${late} WEEK${late>1?'S':''} LATE. ANDY KILLS YOU AT ${tol}.`;col=late>=tol-2?'#ff4040':'#ff8a3a';}
+ else{const left=m.deadline-S.week;line=`NEXT: ${m.name.toUpperCase()} (KM ${m.km}, DEADLINE WEEK ${m.deadline}, ${left} WEEK${left===1?'':'S'} LEFT)`;if(left<=3)col='#ffb000';}
+ txt(line,16,36,26,col,null,true);
+ let ty=8;for(const o of TOASTS){txt(o.text,1264,ty,30,o.col,'right',true);ty+=30;}ctx.restore();}
+// box(ext): the text box; ext (canvas px) extends it upward over the scene when a menu needs more room than 168px (phones: nothing below 24px)
+function box(ext){ext=ext||0;const top=SH*PX-ext;ctx.fillStyle='#000';ctx.fillRect(0,top,1280,960-top);ctx.strokeStyle='#fff';ctx.lineWidth=6;ctx.strokeRect(27,top+13,1226,930-top);ctx.lineWidth=2;ctx.strokeRect(39,top+25,1202,906-top);}
 function boxText(text,hint,opts){box();const o=opts||{};let size=36;let ls=wrap(text,66);if(ls.length>4){size=30;ls=wrap(text,80);}if(ls.length>5){size=26;ls=wrap(text,92);}
  const lh=size*0.92;let y=o.top||(hint?778:790);if(!hint&&ls.length<4)y=790+(4-ls.length)*lh/2;
  for(const l of ls){txt(l,640,y,size,'#fff','center');y+=lh;}
  if(hint)txt(hint,640,905,30,'#bdbdbd','center');}
-function boxMenu(title,items,sel,extra){box();let y=772;let size=items.length>7?21:items.length>5?27:30;let tl=title?wrap(title,Math.floor(2400/size)):[];
- // shrink until the title lines and the items fit in the box (772..940)
- while(size>21&&(tl.length+items.length)*size*0.95>168){size-=3;tl=title?wrap(title,Math.floor(2400/size)):[];}
+function boxMenu(title,items,sel,extra){let size=items.length>5?27:30;let tl=title?wrap(title,Math.floor(2400/size)):[];
+ // shrink to 24px at most; past that the box grows upward instead (772..940 is the normal text area)
+ while(size>24&&(tl.length+items.length)*size*0.95>168){size-=3;tl=title?wrap(title,Math.floor(2400/size)):[];}
+ const need=(tl.length+items.length)*size*0.95+(extra?30:0);const ext=Math.max(0,Math.ceil(need-168));box(ext);let y=772-ext;
  for(const l of tl){txt(l,640,y,size,'#fff','center');y+=size;}
  items.forEach((it,i)=>{const on=i===sel;txt((on?'> ':'  ')+(i+1)+'. '+it,80,y,size,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-4,y1:y+size*0.95,key:String(i+1)});y+=size*(items.length>7?0.9:0.95);});
  if(extra)txt(extra,640,915,26,'#bdbdbd','center');}
@@ -769,21 +902,24 @@ const DRAW={
  mgIntro(t){const m=S.mg;MG_DRAW[m.type](t);boxText(MG_INTRO[m.type],TOUCH?'Tap to start.':'Press ENTER to start.');},
  mgPhone(t){drawMGPhone(t);if(S.mg){box();txt(TOUCH?'Tap the answer. Fast.':'Press 1, 2 or 3. Fast.',640,830,34,'#fff','center');}},
  mgPump(t){drawMGPump(t);if(S.mg){box();txt(TOUCH?'TAP TAP TAP to pump. Keep the water under the yellow line.':'Mash SPACE to pump. Keep the water under the yellow line.',640,830,34,'#fff','center');}},
- mgPaper(t){drawMGPaper(t);if(S.mg){box();ctx.strokeStyle='#ff6060';ctx.lineWidth=4;ctx.strokeRect(80,790,500,110);ctx.strokeStyle='#60ff90';ctx.strokeRect(700,790,500,110);txt('SHRED',330,812,60,'#ff6060','center');txt('SUBMIT TO MEL',950,812,60,'#60ff90','center');txt(TOUCH?'tap the left side':'LEFT arrow',330,872,22,'#bdbdbd','center');txt(TOUCH?'tap the right side':'RIGHT arrow or ENTER',950,872,22,'#bdbdbd','center');HIT.push({x0:0,x1:640,y0:0,y1:960,key:'shred'});HIT.push({x0:640,x1:1280,y0:0,y1:960,key:'submit'});}},
+ mgPaper(t){drawMGPaper(t);if(S.mg){box();ctx.strokeStyle='#ff6060';ctx.lineWidth=4;ctx.strokeRect(80,790,500,110);ctx.strokeStyle='#60ff90';ctx.strokeRect(700,790,500,110);txt('SHRED',330,812,60,'#ff6060','center');txt('SUBMIT TO MEL',950,812,60,'#60ff90','center');txt(TOUCH?'tap the left side':'LEFT arrow',330,872,26,'#bdbdbd','center');txt(TOUCH?'tap the right side':'RIGHT arrow or ENTER',950,872,26,'#bdbdbd','center');HIT.push({x0:0,x1:640,y0:0,y1:960,key:'shred'});HIT.push({x0:640,x1:1280,y0:0,y1:960,key:'submit'});}},
  mgBlast(t){drawMGBlast(t);if(S.mg){box();txt(S.mg.phase==='play'?(TOUCH?'TAP to lock the charge when it is in the green band.':'SPACE to lock the charge when it is in the green band.'):'Stand back.',640,830,34,'#fff','center');}},
  mgPick(t){drawMGPick(t);if(S.mg){box();txt(TOUCH?'TAP to lower. Both ends on the green seats. Joe is watching.':'SPACE to lower. Both ends on the green seats. Joe is watching.',640,830,34,'#fff','center');}},
- mgMenu(t){drawScene(viewFromState(),t);hud();boxMenu('',["Lenny: load the rock trucks (excavator)","Tanya: blast the rock cut (powder)","Joe: set the girders (crane)","Louie: cut the grade (grader)","Harsh: the ATP package (paperwork)","Scott: the phone (100 calls)","Adam: dewatering (culvert trench)",'Back'],S.sel,'');},
+ mgMenu(t){drawScene(viewFromState(),t);hud();boxMenu('',["Lenny: load the rock trucks (excavator)","Tanya: blast the rock cut (powder)","Joe: set the girders (crane)","Louie: cut the grade (grader)","Harsh: the ATP package (paperwork)","Scott: the phone","Adam: dewatering (culvert trench)","Lenny: roll the mat (paving)",'Back'].map((l,i)=>i<8&&S.played[MG_TYPES_MENU[i]]?l+`  (level ${S.played[MG_TYPES_MENU[i]]+1})`:l),S.sel,'');},
+ mgPave(t){drawMGPave(t);if(S.mg){box();txt(TOUCH?'Hold and drag sideways to drive the roller. Stay in the green window.':'Hold LEFT or RIGHT to drive the roller. Stay in the green window.',640,830,34,'#fff','center');}},
  mgLoad(t){drawMGLoad(t);if(S.mg){box();txt(TOUCH?'TAP to dump the bucket when the bar over the truck is green.':'SPACE or ENTER to dump the bucket when the bar over the truck is green.',640,830,34,'#fff','center');}},
  mgGrade(t){drawMGGrade(t);if(S.mg){box();txt(TOUCH?'Hold and drag up or down to move the blade.':'Hold UP or DOWN to move the blade.',640,830,34,'#fff','center');}},
  title(t){drawScene({km:3,night:true,weather:'Clear',trucks:3,dozers:1,crane:1,party:PARTY_DEF,graves:[{},{}],moving:true,extras:[],joeAway:0},t);
+  ctx.fillStyle='rgba(5,7,26,0.55)';ctx.fillRect(0,96,1280,224);
   ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=0;txt('SELKIRK TRAIL',646,126,150,'#000','center');txt('SELKIRK TRAIL',640,120,150,'#ffd400','center');ctx.restore();
-  txt('A Golden, BC construction tragedy in six kilometres',640,262,40,'#fff','center');
+  txt('A Golden, BC construction tragedy in six kilometres',640,262,40,'#fff','center',true);
   boxMenu('',['Start a new project','Just play the mini-games','Learn about the trail','Look at the Top Ten (there is no Top Ten, Andy deleted it)'],S.sel,TOUCH?'Tap to select':'ENTER to select');},
  intro(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);boxText(INTRO[S.page],HINT);},
  about(t){drawScene({km:6,night:true,weather:'Clear',trucks:2,dozers:1,crane:0,party:PARTY_DEF,graves:[],moving:true,extras:[],joeAway:0},t);boxText(ABOUT[S.page],HINT);},
  name(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);box();txt('What is your name, boss?',640,785,36,'#fff','center');txt(S.name+(Math.floor(t*2)%2?'_':' '),640,835,44,'#ffd400','center');txt(TOUCH?'Tap to type a name.':'Type a name and press ENTER.',640,905,30,'#bdbdbd','center');},
+ epitaph(t){drawScene(viewFromState({night:true}),t);hud();box();const g=S.epiFor||{name:'?'};txt(`A cross goes up at km ${(g.km||0).toFixed(1)} for ${g.name}. What does it say?`,640,780,32,'#fff','center');txt(S.epi+(Math.floor(t*2)%2?'_':' '),640,828,40,'#ffd400','center');txt(TOUCH?'Tap to write it (or leave it blank).':'Type up to 32 characters and press ENTER. Blank is fine.',640,900,26,'#bdbdbd','center');},
  role(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);
-  boxMenu('Many roles have fallen on the Selkirk Trail. What is yours?',ROLES.map(r=>r.name+'  -  '+r.blurb),S.sel,'');},
+  boxMenu('Many roles have fallen on the Selkirk Trail. What is yours?',ROLES.map(r=>r.diff+': '+r.name+'  -  '+r.blurb),S.sel,'');},
  crew(t){drawScene({km:0,night:true,weather:'Clear',trucks:0,dozers:0,crane:0,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);box();
   txt(`${S.name}, ${S.role.name}. Your crew:`,640,772,32,'#fff','center');PARTY_DEF.forEach((p,i)=>txt(p.role?`${p.name}  -  ${p.role}`:p.name,i<4?340:940,808+(i%4)*26,26,'#ffd400','center'));txt(TOUCH?'Tap to go to the yard.':'Press ENTER to go to the yard.',640,918,26,'#bdbdbd','center');},
  store(t){const site=S.storeSite;drawScene(site?viewFromState({moving:false}):{km:0,night:false,weather:'Clear',trucks:S.trucks,dozers:S.dozers,crane:S.crane,party:PARTY_DEF,graves:[],moving:false,extras:[]},t);
@@ -810,8 +946,9 @@ const DRAW={
   txt(`EllisDon loss so far: ${fmtFull(S.loss)}   (target: less than $45,000,000, ha)`,640,y,32,'#ffd400','center');txt(`Progress: km ${S.km.toFixed(2)} of 6.  Fired by Andy: ${S.fired}.  Quit: ${S.quit}.`,640,y+40,32,'#fff','center');
   box();txt(TOUCH?'Tap to return.':'Press ENTER to return.',640,830,32,'#bdbdbd','center');},
  msg(t){const m=S.queue[0];drawScene(viewFromState({extras:m&&m.andy?[{x:118,hat:'#fff',shirt:'#1d2b4f',pants:'#1d2b4f',tie:true}]:[]}),t);hud();
-  if(m.ch){box();let size=m.t.length>90?26:30;let ls=wrap(m.t,size>26?78:92);let y=770;for(const l of ls){txt(l,640,y,size,'#fff','center');y+=size*0.9;}y+=6;
-   m.ch.forEach((c,i)=>{const on=i===S.sel;txt((on?'> ':'  ')+(i+1)+'. '+c.l,90,y,28,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-3,y1:y+27,key:String(i+1)});y+=27;});}
+  if(m.ch){let size=m.ch.length>6?26:m.t.length>90?26:30;let ls=wrap(m.t,size>26?78:92);const cs=m.ch.length>4?24:28;
+   const need=ls.length*size*0.9+6+m.ch.length*(cs-1)+8;const ext=Math.max(0,Math.ceil(need-168));box(ext);let y=770-ext;for(const l of ls){txt(l,640,y,size,'#fff','center');y+=size*0.9;}y+=6;
+   m.ch.forEach((c,i)=>{const on=i===S.sel;txt((on?'> ':'  ')+(i+1)+'. '+c.l,90,y,cs,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-3,y1:y+cs-1,key:String(i+1)});y+=cs-1;});}
   else boxText(m.t,HINT);},
  milestone(t){drawScene(viewFromState(),t);hud();const m=S.msCur;const late=S.late;
   boxMenu(`You have reached ${m.name}.  Week ${S.week}.  Andy wanted it by Week ${m.deadline}.  ${late>0?'You are '+late+' weeks late. Andy knows.':'You are on time. Andy is suspicious.'}`,['Continue on the trail','Talk to Mel','Look around',"Visit the yard (Finning's truck is here)"],S.sel,'');},
@@ -839,14 +976,16 @@ const KEY={
  mgPump(k){if(k.length===1||k==='Enter'||k.startsWith('Arrow'))pumpStroke();},
  mgPaper(k){if(k==='ArrowLeft'||k==='a'||k==='shred')handleDoc('shred');else if(k==='ArrowRight'||k==='d'||k==='Enter'||k===' '||k==='submit')handleDoc('submit');},
  mgPick(k){if(k==='Enter'||k===' ')startLower();},
- mgMenu(k){const i=menuKey(k,8);if(i<0)return;const need=[['load',S.trucks>0,"No rock trucks to load. Lenny laughs for a long time."],['blast',true,''],['pick',S.crane>0,"No crane. Joe looks at the girders, then at you."],['grade',S.graders>0,"No grader. Louie offers to 'eyeball it' with the dozer. Mel would notice."],['paper',true,''],['phone',true,''],['pump',true,'']];if(i===7){S.screen=S.arcade?'title':'menu';S.sel=0;return;}const [ty,ok,msg]=need[i];if(ok)startMG(ty);else{S.ret='menu';show({t:msg});}},
+ mgMenu(k){const i=menuKey(k,9);if(i<0)return;const need=[['load',S.trucks>0,"No rock trucks to load. Lenny laughs for a long time."],['blast',true,''],['pick',S.crane>0&&joeAlive(),joeAlive()?"No crane. Joe looks at the girders, then at you.":"No Joe. Sterling's operator sets them, slowly, without you."],['grade',S.graders>0,"No grader. Louie offers to 'eyeball it' with the dozer. Mel would notice."],['paper',here('Harsh'),"No Harsh, no package. Mel gets the real cut sheets, late, in a box."],['phone',true,''],['pump',here('Adam'),"No labour crew. A subcontractor from Cranbrook does the culvert. Next month."],['pave',true,'']];if(i===8){S.screen=S.arcade?'title':'menu';S.sel=0;return;}const [ty,ok,msg]=need[i];if(ok)startMG(ty);else{S.ret='menu';show({t:msg});}},
  mgLoad(k){if(k==='Enter'||k===' ')dumpBucket();},
  mgGrade(k){},
+ mgPave(k){},
  title(k){const i=menuKey(k,4);if(i===0){const nm=S.name;newGame();S.name=nm;S.screen='intro';S.page=0;}else if(i===1){const nm=S.name;newGame();S.name=nm||'Boss';Object.assign(S,{role:ROLES[0],trucks:4,dozers:1,graders:1,crane:1,fuel:60000,coffee:1200,km:2.5,msIndex:2,week:20,arcade:true,screen:'mgMenu',sel:0});}else if(i===2){S.screen='about';S.page=0;}else if(i===3){show({t:"There is no Top Ten. Andy deleted it after someone put Mel in the number one spot."});S.ret='title';}},
  intro(k){if(k==='Enter'||k===' '){if(++S.page>=INTRO.length){S.screen='name';}}},
  about(k){if(k==='Enter'||k===' '){if(++S.page>=ABOUT.length){S.screen='title';S.sel=0;}}},
  name(k){if(k==='Enter'){if(!S.name.trim())S.name='Boss';S.screen='role';S.sel=0;}else if(k==='Backspace')S.name=S.name.slice(0,-1);else if(k.length===1&&/[a-zA-Z0-9 .'-]/.test(k)&&S.name.length<14)S.name+=k;},
  role(k){const i=menuKey(k,3);if(i>=0){S.role=ROLES[i];S.cash=ROLES[i].cash;S.screen='crew';}},
+ epitaph(k){if(k==='Enter')epitaphDone();else if(k==='Backspace')S.epi=S.epi.slice(0,-1);else if(k.length===1&&/[a-zA-Z0-9 .,'!?-]/.test(k)&&S.epi.length<32)S.epi+=k;},
  crew(k){if(k==='Enter'||k===' '){S.screen='store';S.sel=0;}},
  store(k){const n=STORE.length+1;if(k==='ArrowUp')S.sel=(S.sel+n-1)%n;else if(k==='ArrowDown')S.sel=(S.sel+1)%n;
   else if(S.sel<STORE.length&&(k==='ArrowRight'||k==='+'||k==='='))storeBuy(STORE[S.sel]);
@@ -860,25 +999,34 @@ const KEY={
  menu(k){const i=menuKey(k,9);if(i===8){S.screen='mgMenu';S.sel=0;return;}if(i===0){S.screen='travel';S.moving=true;}else if(i===1)S.screen='status';else if(i===2){S.screen='pace';S.sel=S.pace;}else if(i===3){S.screen='ration';S.sel=S.ration;}
   else if(i===7){S.ret='menu';if(!joeAlive())show({t:"Joe took the Calgary job. His hard hat is still on the hook."});else if(!joeHere())show({t:"Joe is in Calgary for a few days."});else show({t:rnd(JOE_TALK)});}
   else if(i===4){S.week++;S.loss+=burn();for(const p of alive()){p.health=Math.min(100,p.health+15);p.cond=null;}S.ret='menu';show({t:rnd(["The crew rests for a week. Andy notices. Andy always notices.","A week off. Louie goes fishing. Scott goes to Calgary. Lenny reads the spec. Nobody knows why.","Rest week. Tanya holds an optional safety meeting. Attendance is mandatory."])});}
-  else if(i===5){for(const p of alive())p.health=Math.max(1,p.health-2);S.ret='menu';show({t:rnd(ANDY_CALLS)});}
+  else if(i===5){S.ret='menu';const hit=here('Scott')?2:4;if(S.week-S.andyAsk>=8&&Math.random()<0.35){S.andyAsk=S.week;S.cash+=500000;show({t:"Andy: 'Fine. Half a million on the allowance. Don't call again.' *click*  Finning's truck will take it at the next milestone."});}else{S.andyAsk=S.week;for(const p of alive())p.health=Math.max(1,p.health-hit);show({t:rnd(ANDY_CALLS)+(here('Scott')?'':" Scott used to take these calls. Scott is gone. The crew heard every word.")});}}
   else if(i===6){const sick=alive().filter(p=>p.cond);S.week++;S.loss+=burn();if(sick.length){for(const p of sick)p.cond=null;S.ret='menu';show({t:`Tanya runs a wellness toolbox talk. It lasts a week. ${sick.map(p=>p.name).join(' and ')} feel${sick.length>1?'':'s'} better. Everyone else feels lectured.`});}else{S.ret='menu';show({t:rnd(["Tanya: 'Where is your hi-vis?' You are wearing it. She checks the tag anyway. One week passes.","Tanya shows you a 40-slide deck on ladder safety. There are still no ladders. One week passes."])});}}},
  pace(k){const i=menuKey(k,3);if(i>=0){S.pace=i;S.screen='menu';S.sel=0;}},
  ration(k){const i=menuKey(k,3);if(i>=0){S.ration=i;S.screen='menu';S.sel=0;}},
  status(k){if(k==='Enter'||k===' '||k==='Escape'){S.screen='menu';S.sel=0;}},
  msg(k){const m=S.queue[0];if(!m){S.screen=S.ret||'travel';return;}
-  if(m.ch){const i=menuKey(k,m.ch.length);if(i<0)return;const c=m.ch[i];const out=c.run?c.run(S):{t:c.t,fx:c.fx,on:c.on};applyFx(out.fx);if(out.on)out.on(S);S.queue.shift();if(out.t)S.queue.unshift({t:out.t});S.sel=0;if(!S.queue.length)finishMsg();return;}
+  if(m.ch){const i=menuKey(k,m.ch.length);if(i<0)return;const c=m.ch[i];const out=c.run?c.run(S):{t:c.t,fx:c.fx,on:c.on,bonus:c.bonus};applyFx(out.fx);if(out.on)out.on(S);if(out.bonus>0){const nx=MILESTONES[S.msIndex];S.km=Math.min(S.km+out.bonus,nx?nx.km-0.01:6);}S.queue.shift();if(out.t)S.queue.unshift({t:out.t});S.sel=0;if(!S.queue.length)finishMsg();return;}
   if(k==='Enter'||k===' '){S.queue.shift();if(m.then)m.then();if(S.screen==='msg'&&!S.queue.length)finishMsg();}},
- milestone(k){const i=menuKey(k,4);const m=S.msCur;if(i===0)afterMilestone();else if(i===1){S.ret='milestone';show({t:m.mel});}else if(i===2){S.ret='milestone';show({t:m.look});}else if(i===3)openSiteYard();},
+ milestone(k){const i=menuKey(k,4);const m=S.msCur;if(i===0){const cr=CROSSINGS[m.km];if(cr&&!S.crossed[m.km]){S.crossed[m.km]=1;S.ret='afterMs';show({t:cr.t,ch:cr.ch.filter(c=>!c.cond||c.cond(S))});}else afterMilestone();}else if(i===1){S.ret='milestone';show({t:m.mel});}else if(i===2){S.ret='milestone';const rs=roadside();show({t:m.look+(rs.length?`\n\nRoadside: a cross for ${rs[rs.length-1].name}, from ${rs[rs.length-1].boss||'another boss'}'s job. It reads '${rs[rs.length-1].epi}'.`:'')});}else if(i===3)openSiteYard();},
  dead(k){if(k==='Enter'||k===' '){S.screen='summary';}},
  win(k){if(k==='Enter'||k===' '){if(++S.page>=3)S.screen='summary';}},
  summary(k){if(k==='Enter'||k===' '){const nm=S.name;newGame();S.name=nm;S.screen='title';S.sel=0;}},
 };
-function finishMsg(){const r=S.ret||'travel';S.ret='travel';if(S.screen!=='msg')return;S.screen=r;if(r==='travel')S.moving=true;if(r==='menu'||r==='title'||r==='milestone'||r==='mgMenu')S.sel=0;}
+function finishMsg(){const r=S.ret||'travel';S.ret='travel';if(S.screen!=='msg')return;if(r==='afterMs'){afterMilestone();if(S.screen==='travel'&&!S.queue.length)S.moving=true;return;}S.screen=r;if(r==='travel')S.moving=true;if(r==='menu'||r==='title'||r==='milestone'||r==='mgMenu')S.sel=0;}
 
 // ---------------- loop + input ----------------
 let last=0;
 function frame(ms){const t=ms/1000;DT=Math.min(0.05,Math.max(0,(ms-lastMs)/1000));lastMs=ms;if(S.screen==='travel'&&S.moving&&ms-S.lastTick>850){S.lastTick=ms;tick();}
- ctx.imageSmoothingEnabled=false;HIT=[];(DRAW[S.screen]||DRAW.title)(t);requestAnimationFrame(frame);}
+ const inMG=S.mg&&S.screen.startsWith('mg')&&S.screen!=='mgIntro'&&S.screen!=='mgMenu';
+ if(inMG&&S.mg.warm>0){S.mg.warm-=DT;if(S.mg.warm<=0){S.mg.warm=0;mgRestart(true);}}
+ ctx.imageSmoothingEnabled=false;HIT=[];
+ ctx.save();if(SHAKET>0){SHAKET-=DT;const a=SHAKE*Math.min(1,SHAKET*3);ctx.translate((Math.random()*2-1)*a,(Math.random()*2-1)*a);if(SHAKET<=0)SHAKE=0;}
+ (DRAW[S.screen]||DRAW.title)(t);ctx.restore();
+ if(FLASHA>0){ctx.fillStyle='rgba(255,255,255,'+FLASHA.toFixed(2)+')';ctx.fillRect(0,0,1280,744);FLASHA-=DT*2.5;}
+ toastCheck();for(const o of TOASTS)o.t-=DT;for(let i=TOASTS.length-1;i>=0;i--)if(TOASTS[i].t<=0)TOASTS.splice(i,1);
+ const mg2=S.mg;if(inMG&&mg2&&mg2.warm>0){ctx.save();ctx.shadowColor='#000';ctx.shadowOffsetX=3;ctx.shadowOffsetY=3;txt('PRACTICE  '+Math.ceil(mg2.warm),640,80,54,'#ffd400','center',true);txt('GOAL: '+(MG_GOAL[mg2.type]||''),640,136,30,'#fff','center',true);ctx.restore();}
+ else if(inMG&&mg2&&mg2.lvl>1){txt('LEVEL '+mg2.lvl,1264,44,28,'#ffd400','right',true);}
+ requestAnimationFrame(frame);}
 document.addEventListener('keyup',e=>KEYS.delete(e.key));
 document.addEventListener('keydown',e=>{const k=e.key;KEYS.add(k);if(e.repeat&&S.screen.startsWith('mg'))return;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','Backspace'].includes(k))e.preventDefault();(KEY[S.screen]||KEY.title)(k);});
 function canvasPoint(e){const r=cv.getBoundingClientRect();if(r.height>r.width)return{x:(e.clientY-r.top)/r.height*1280,y:(r.right-e.clientX)/r.width*960};return{x:(e.clientX-r.left)/r.width*1280,y:(e.clientY-r.top)/r.height*960};}
@@ -886,16 +1034,18 @@ cv.addEventListener('pointerdown',e=>{e.preventDefault();try{cv.focus();}catch(_
  const p=canvasPoint(e);const h=HIT.find(z=>p.x>=z.x0&&p.x<=z.x1&&p.y>=z.y0&&p.y<=z.y1);
  if(S.screen==='gate'){askGate();return;}
  if(S.screen==='mgGrade'&&S.mg){S.mg.pointerDown=true;S.mg.target=p.y/8;return;}
+ if(S.screen==='mgPave'&&S.mg){S.mg.pointerDown=true;S.mg.target=p.x/8;return;}
  if(S.screen==='mgLoad'){dumpBucket();return;}
  if(S.screen==='mgBlast'){lockCharge();return;}
  if(S.screen==='mgPump'){pumpStroke();return;}
  if(S.screen==='mgPhone'){if(h)KEY.mgPhone(h.key);return;}
  if(S.screen==='mgPick'){startLower();return;}
  if(S.screen==='name'){const v=prompt('What is your name, boss?',S.name);if(v!==null)S.name=v.trim().slice(0,14)||'Boss';KEY.name('Enter');return;}
+ if(S.screen==='epitaph'){const v=prompt('What does the cross say?',S.epi);if(v!==null)S.epi=v.slice(0,32);epitaphDone();return;}
  if(S.screen==='store'){if(!h)return;if(h.key==='go'){S.sel=STORE.length;KEY.store('Enter');return;}const [act,i]=h.key.split(':');S.sel=+i;if(act==='plus')KEY.store('ArrowRight');else if(act==='minus')KEY.store('ArrowLeft');return;}
  (KEY[S.screen]||KEY.title)(h?h.key:'Enter');});
 cv.addEventListener('contextmenu',e=>e.preventDefault());
-cv.addEventListener('pointermove',e=>{if(S.screen==='mgGrade'&&S.mg&&S.mg.pointerDown){S.mg.target=canvasPoint(e).y/8;}});
+cv.addEventListener('pointermove',e=>{if(S.screen==='mgGrade'&&S.mg&&S.mg.pointerDown){S.mg.target=canvasPoint(e).y/8;}if(S.screen==='mgPave'&&S.mg&&S.mg.pointerDown){S.mg.target=canvasPoint(e).x/8;}});
 const endDrag=()=>{if(S.mg){S.mg.pointerDown=false;S.mg.target=null;}};cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',endDrag);cv.addEventListener('pointerleave',endDrag);
 window.ST={CFG,get S(){return S;},set:o=>Object.assign(S,o),go:s=>{S.screen=s;},show,fire,gameover,newGame:()=>{newGame();},ROLES,MILESTONES};
 document.fonts&&document.fonts.load('36px "VT323"').then(()=>{}).catch(()=>{});
