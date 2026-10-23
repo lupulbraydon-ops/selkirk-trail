@@ -256,7 +256,7 @@ const CFG={speed:0.14,evRate:0.42,illRate:0.07,burn:600000,lateKill:8};
 let S;
 function newGame(){S={screen:'title',week:1,km:0,loss:0,cash:0,fuel:0,coffee:0,vests:6,tracks:0,trucks:0,dozers:0,graders:0,crane:0,
  pace:0,ration:0,weather:'Clear',party:PARTY_DEF.map(p=>Object.assign({},p,{health:100,alive:true,cond:null,condWeeks:0,gone:''})),
- graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],joeAway:0,joeLeftAt:0,joeRetAt:0,played:{},arcade:false};}
+ graves:[],role:null,name:'',moving:false,msIndex:0,page:0,sel:0,queue:[],ret:'travel',lastTick:0,deathReason:'',fired:0,quit:0,late:0,extras:[],joeAway:0,joeLeftAt:0,joeRetAt:0,played:{},arcade:false,fuelOut:false};}
 newGame();if(!gateOpen())S.screen='gate';
 const alive=()=>S.party.filter(p=>p.alive);
 const joeHere=()=>{const f=S.party.find(p=>p.name==='Joe');return !!(f&&f.alive)&&S.joeAway<=0;};
@@ -299,7 +299,7 @@ function tick(){
  if(S.msIndex===2&&!joeHere())speed*=0.6;   // bridge without the bridge super
  if(S.joeAway>0&&S.joeAway<900){if(--S.joeAway<=0){S.joeRetAt=now();show({t:rnd(["Joe is back from Calgary. The abutment forms are ready.","Joe is back. He went straight to the creek to check the forms."])});return;}}
  const use=(200+S.trucks*350+S.dozers*500+S.graders*250+S.crane*150)*pf;
- const hadFuel=S.fuel>0; S.fuel=Math.max(0,S.fuel-use);
+ if(S.fuel>0)S.fuelOut=false; S.fuel=Math.max(0,S.fuel-use);
  S.coffee=Math.max(0,S.coffee-[14,7,3][S.ration]*alive().length);
  S.loss+=burn();
  const dh=[-1,-2,-4][S.pace]+[2,0,-2][S.ration]+(S.coffee<=0?-4:0)+(S.weather==='Snow'?-2:0);
@@ -309,7 +309,7 @@ function tick(){
  S.km=Math.min(S.km+speed,next.km);
  if(S.km>=next.km){reachMilestone(next);return;}
  for(const [ty,km] of MG_SCHEDULE){if(S.km>=km&&!S.played[ty]&&mgAllowed(ty)){show({t:MG_PROMPT[ty],then:()=>startMG(ty)});return;}}
- if(S.fuel<=0&&hadFuel){applyFx({weeks:1,loss:45000,fuel:20000});show({t:"You are out of diesel. Louie siphons the pickup. A fuel truck from Golden brings 20,000 L a week later. $45,000, plus a tip."});return;}
+ if(S.fuel<=0&&!S.fuelOut){S.fuelOut=true;applyFx({weeks:1,loss:45000,fuel:20000});show({t:"You are out of diesel. Louie siphons the pickup. A fuel truck from Golden brings 20,000 L a week later. $45,000, plus a tip."});return;}
  if(S.coffee<=0&&Math.random()<0.25){show({t:rnd(["The crew is out of coffee. Adam has stopped blinking.","No coffee. Scott is drinking hydraulic fluid 'as a joke'. It is not a joke.","Coffee gone. Lenny has started a fire just to feel something."])});return;}
  const r=Math.random();
  if(r<CFG.illRate)illness(); else if(r<CFG.illRate+CFG.evRate)randomEvent();
