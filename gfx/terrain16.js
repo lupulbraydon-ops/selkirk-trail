@@ -15,7 +15,7 @@
   'use strict';
   const W = typeof window !== 'undefined' ? window : globalThis;
   const T = W.TERRAIN16 = W.TERRAIN16 || {};
-  T.opts = Object.assign({ moon: true, clouds: true }, T.opts || {});
+  T.opts = Object.assign({ moon: true, clouds: true, smoke: false }, T.opts || {});
   const cache = new Map();
   T.clearCache = function () { cache.clear(); };
 
@@ -23,10 +23,11 @@
   const C = {
     skyDay: ['#1f5fbf', '#2f6fc8', '#4f95e0', '#7fb8ec', '#b9dcf5'],
     skyNight: ['#05071a', '#0b1030', '#161c4c', '#1e2460', '#262e72'],   // * last one = night horizon glow
+    skySmoke: ['#9a7664', '#b08a68', '#c4a074', '#d6b684', '#e2c898'],   // * wildfire smoke: warm grey-orange bands (TERRAIN16.opts.smoke)
     cloud: '#f7fbff', cloudSh: '#d6e6f5',
     moon: '#f3f0d8', moonSh: '#c9c6a8', star: ['#8a8fb8', '#cfd4ff', '#ffffff'],
     mtDay: { far: ['#93aae6', '#7b93d9', '#6a80c8'], mid: ['#5f7fd4', '#5372c9', '#4661b3'], near: ['#3d5aa8', '#3552a0', '#2f478c'], snow: ['#f2f5ff', '#dfe6fa', '#c9d4f0'] },
-    mtNight: { far: ['#4550c0', '#4550c0', '#3a44a6'], mid: ['#2c39a8', '#2c39a8', '#232e8a'], near: ['#1e2470', '#1e2470', '#171b58'], snow: ['#d9dfff', '#d9dfff', '#a9b3e0'] },
+    mtNight: { far: ['#232a70', '#232a70', '#1d245e'], mid: ['#1b2160', '#1b2160', '#161b4e'], near: ['#141848', '#141848', '#10133a'], snow: ['#b4bce8', '#b4bce8', '#8a93c4'] },   // * sits just below the night horizon glow so the ridges do not out-glow the sky
     grass: { hi: '#3a9a2a', base: '#1d7a1d', sh: '#166316', shoulder: '#0f4a12' },
     dirt: { hi: '#a06a30', light: '#8f5a26', base: '#7a4a1c', sh: '#5e3812', dark: '#3f2408', bed: '#5b4a3c', bedHi: '#6e5c4c', bedSh: '#4a3c30' /* * */ },
     rock: ['#dcdcdc', '#c4c4c4', '#9a9a9a', '#6f6f6f', '#4a4a4a'],
@@ -151,8 +152,10 @@
   }
   W.drawSky16 = function (night, t, grid) {
     const G = gridOf(grid);
-    baked('sky|' + (night ? 1 : 0) + '|' + G.name, G, 0, G.h, (b) => {
+    const smoke = !night && !!T.opts.smoke;
+    baked('sky|' + (night ? 1 : 0) + (smoke ? 's' : '') + '|' + G.name, G, 0, G.h, (b) => {
       if (night) { skyBands(b, G, C.skyNight, [0.22, 0.44, 0.66, 0.86], [6, 6, 9, 15]); stars(b, G); if (T.opts.moon) moon(b, G); }
+      else if (smoke) { skyBands(b, G, C.skySmoke, [0.18, 0.38, 0.6, 0.82], [6, 6, 8, 10]); }
       else { skyBands(b, G, C.skyDay, [0.18, 0.38, 0.6, 0.82], [6, 6, 6, 6]); if (T.opts.clouds) clouds(b, G); }
     });
     if (night) twinkle(G, +t || 0);
@@ -186,9 +189,17 @@
   }
   W.drawMountains16 = function (night, grid) {
     const G = gridOf(grid);
-    baked('mt|' + (night ? 1 : 0) + '|' + G.name, G, 0, G.mtBase, (b) => {
+    const smoke = !night && !!T.opts.smoke;
+    baked('mt|' + (night ? 1 : 0) + (smoke ? 's' : '') + '|' + G.name, G, 0, G.mtBase, (b) => {
       const M = night ? C.mtNight : C.mtDay, pk = PEAKS[G.name];
-      const hazeCol = night ? C.skyNight[4] : C.skyDay[4];
+      const hazeCol = night ? C.skyNight[4] : smoke ? C.skySmoke[4] : C.skyDay[4];
+      if (smoke) {                                                      // smoke: the far layer is lost in the haze, mid half gone, near ridge muted and warmed
+        const f = (cols, a) => cols.map(c => mix(c, hazeCol, a));
+        mtLayer(b, G, pk.far, f(M.far, 0.88), f(M.snow, 0.88), null, 1);
+        mtLayer(b, G, pk.mid, f(M.mid, 0.62), f(M.snow, 0.62), null, 2);
+        mtLayer(b, G, pk.near, f(M.near, 0.4), f(M.snow, 0.4), { col: hazeCol, rows: Math.round(G.mtBase * 0.08) }, 3);
+        return;
+      }
       const far = night ? M.far : M.far.map(c => mix(c, hazeCol, 0.3));
       mtLayer(b, G, pk.far, far, M.snow, { col: hazeCol, rows: Math.round(G.mtBase * 0.25) }, 1);
       mtLayer(b, G, pk.mid, M.mid, M.snow, null, 2);
@@ -225,31 +236,91 @@
     else if (r < 0.85) { b.r(x, y, 3, 2, R[2]); b.r(x, y, 2, 1, R[1]); b.px(x + 2, y + 1, R[3]); b.px(x + 1, y + 1, R[3]); }
     else { b.r(x, y, 4, 3, R[2]); b.r(x, y, 3, 1, R[1]); b.px(x, y, R[0]); b.r(x + 1, y + 2, 3, 1, R[3]); b.px(x + 3, y + 1, R[3]); }
   }
+  // cross-section: hue-shifted strata (warm topsoil to cool purple-brown at depth), roots under the tree line, buried boulders,
+  // and a jointed-rock bedrock band (wavy bedding planes, offset vertical joints) instead of coursed blocks. All baked.
+  const STRATA = ['#8f5a26', '#7a4a1c', '#6a4030', '#5a3a3e', '#4c3448'];   // * own colours: band 3..5 cool toward blue-violet
+  const BED_COOL = '#4e4458';                                                 // * deep bedrock, cool
+  function boulder(b, x, y, w, h, band) {
+    const lit = mix(C.rock[1], band, 0.4), base = mix(C.rock[2], band, 0.45), sh = mix(C.rock[3], band, 0.4), hy = h / 2;
+    for (let dy = -Math.floor(hy); dy <= Math.floor(hy); dy++) {
+      const f = Math.sqrt(Math.max(0, 1 - (dy / (hy + 0.5)) * (dy / (hy + 0.5)))); const hw = Math.max(1, Math.round(w / 2 * f));
+      const l = x - hw, r = x + hw;
+      b.r(l, y + dy, r - l, 1, dy > hy * 0.3 ? sh : base);
+      if (dy < -hy * 0.3) b.r(l, y + dy, Math.max(1, Math.round((r - l) * 0.6)), 1, lit);
+      if (dy >= 0) b.px(r - 1, y + dy, C.dirt.dark); else b.px(l, y + dy, lit);
+      if (dy === Math.floor(hy)) b.r(l + 1, y + dy, Math.max(1, r - l - 2), 1, C.dirt.dark);
+    }
+  }
+  function roots(b, G, y0, maxLen, seed) {
+    const w = G.w, k = G.k, col = '#3a2a10', col2 = '#2a1c0a';                 // * col2: deeper root tone
+    for (let x0 = 6; x0 < w; x0 += Math.round(34 * k) + Math.floor(hash(x0, 0, seed) * 20 * k)) {
+      const len = Math.round(maxLen * (0.45 + 0.55 * hash(x0, 1, seed))); let x = x0;
+      for (let i = 0; i < len; i++) {
+        const y = y0 + i; b.px(x, y, i < len * 0.5 ? col : col2);
+        if (i < 3) b.px(x + 1, y, col);                                   // thicker at the crown
+        const d = hash(x0, i, seed + 1); if (d < 0.22) x--; else if (d > 0.78) x++;
+        if (i > 3 && i % 5 === 0 && hash(x0, i, seed + 2) < 0.55) {      // side rootlet
+          const dir = hash(x0, i, seed + 3) < 0.5 ? -1 : 1, bl = 2 + Math.floor(hash(x0, i, seed + 4) * 4 * k);
+          for (let j = 1; j <= bl; j++) b.px(x + dir * j, y + Math.floor(j * 0.6), col2);
+        }
+      }
+    }
+  }
   function dirtSection(b, G) {
     const D = C.dirt, w = G.w, top = G.dirtTop, bed = G.bedrock, bot = G.h, k = G.k;
     b.r(0, top, w, 2, C.grass.shoulder);                                  // darker shoulder line under the road
     let y = top + 2; const topsoil = Math.max(2, Math.round(4 * k));
-    b.r(0, y, w, topsoil, D.dark); speckle(b, 0, w, y, topsoil, D.sh, 0.18, 31); y += topsoil;
-    const span = bed - y, yL = y + Math.round(span * 0.16), yB = y + Math.round(span * 0.62);
-    b.r(0, y, w, yL - y, D.light); b.r(0, yL, w, yB - yL, D.base); b.r(0, yB, w, bed - yB, D.sh);
-    ditherRows(b, 0, w, even(yL - 3), 6, D.light, D.base); ditherRows(b, 0, w, even(yB - 3), 6, D.base, D.sh);
-    speckle(b, 0, w, y, yL - y, D.hi, 0.06, 32); speckle(b, 0, w, yL, yB - yL, D.light, 0.05, 33); speckle(b, 0, w, yL, yB - yL, D.sh, 0.04, 34); speckle(b, 0, w, yB, bed - yB, D.dark, 0.06, 35);
-    for (let i = 0; i < w * 0.04; i++) { const cx = Math.floor(hash(i, 4, 38) * (w - 2)), cy = yL + Math.floor(hash(i, 5, 38) * (bed - yL - 2)); b.r(cx, cy, 2, 1, D.light); b.r(cx, cy + 1, 2, 1, D.dark); } // clods
-    let c = 0;                                                            // strata lines: dashed, alternating offsets
-    for (let sy = y + G.strata; sy < bed - 4; sy += G.strata, c++) {
-      const col = sy < yB ? D.sh : D.dark, off = (c % 2) * 11;
-      for (let x = -off; x < w; x += 24) { const len = 12 + Math.floor(hash(x, sy, 36) * 6); const xs = Math.max(0, x); b.r(xs, sy + Math.floor(hash(x, sy, 37) * 2), Math.min(len, w - xs), 1, col); }
+    b.r(0, y, w, topsoil, D.dark); speckle(b, 0, w, y, topsoil, D.sh, 0.14, 31); y += topsoil;
+    // strata bands: warm at the top, cooler and more violet with depth; dithered transitions, sparse band-relative speckle
+    const span = bed - y, fr = [0, 0.2, 0.46, 0.68, 0.86, 1], edges = fr.map(f => y + Math.round(span * f));
+    for (let i = 0; i < 5; i++) {
+      const band = STRATA[i], y0 = edges[i], y1 = edges[i + 1];
+      b.r(0, y0, w, y1 - y0, band);
+      speckle(b, 0, w, y0, y1 - y0, mix(band, '#ffe0a0', 0.18), 0.025, 32 + i);
+      speckle(b, 0, w, y0, y1 - y0, mix(band, '#140c1c', 0.3), 0.025, 37 + i);
     }
-    const n = Math.round(w * (bed - y) / 900);                            // pebbles with hi/shade
+    for (let i = 1; i < 5; i++) ditherRows(b, 0, w, even(edges[i] - 3), 6, STRATA[i - 1], STRATA[i]);
+    for (let i = 0; i < w * 0.025; i++) {                                 // clods: a lit top and a dark underside
+      const cx = Math.floor(hash(i, 4, 38) * (w - 2)), cy = edges[1] + Math.floor(hash(i, 5, 38) * (edges[4] - edges[1] - 2));
+      const band = STRATA[cy < edges[2] ? 1 : cy < edges[3] ? 2 : 3]; b.r(cx, cy, 2, 1, mix(band, '#ffe0a0', 0.22)); b.r(cx, cy + 1, 2, 1, mix(band, '#140c1c', 0.35));
+    }
+    let c = 0;                                                            // strata lines: dashed, alternating offsets, band-relative
+    for (let sy = y + G.strata * 1.5; sy < bed - 6; sy += G.strata * 1.5, c++) {
+      const bi = Math.max(0, fr.findIndex(f => sy < y + span * f) - 1), col = mix(STRATA[Math.min(4, bi)], '#140c1c', 0.32), off = (c % 2) * 13;
+      for (let x = -off; x < w; x += 30) { const len = 12 + Math.floor(hash(x, sy, 36) * 8); const xs = Math.max(0, x); b.r(xs, sy + Math.floor(hash(x, sy, 37) * 2), Math.min(len, w - xs), 1, col); }
+    }
+    roots(b, G, y - 1, Math.round(26 * k), 90);                           // roots reaching down from the tree line
+    const n = Math.round(w * (bed - y) / 1400);                           // a few pebbles
     for (let i = 0; i < n; i++) { const px = Math.floor(hash(i, 1, 41) * (w - 4)), py = y + 2 + Math.floor(hash(i, 2, 41) * (bed - y - 6)); pebble(b, px, py, hash(i, 3, 41)); }
-    b.r(0, bed - 1, w, 1, D.dark);                                        // bedrock band, coursed blocks
-    b.r(0, bed, w, bot - bed, D.bed);
-    const bh = Math.max(6, Math.round(12 * k)), bw = Math.round(32 * k);
-    for (let by = bed, course = 0; by < bot; by += bh, course++) {
-      b.r(0, by, w, 1, D.bedHi); b.r(0, by + bh - 1, w, 1, D.bedSh);
-      for (let bx = -(course % 2) * (bw >> 1), j = 0; bx < w; j++) { const bwj = bw + Math.round((hash(j, course, 43) - 0.5) * bw * 0.8); b.r(bx, by, 1, bh, D.bedSh); if (hash(j, course, 44) < 0.5) b.r(bx + 1, by + 1, 1, bh - 2, D.bedHi); if (hash(j, course, 45) < 0.3) b.r(bx + 2 + Math.floor(hash(j, course, 46) * (bwj - 4)), by + 2 + Math.floor(hash(j, course, 47) * (bh - 4)), 2, 1, D.bedSh); bx += Math.max(6, bwj); }
+    const nb = Math.max(2, Math.round(w / 90));                           // buried boulders in the middle bands
+    for (let i = 0; i < nb; i++) {
+      const bx = 10 + Math.floor(hash(i, 6, 48) * (w - 20)), by = edges[1] + 4 + Math.floor(hash(i, 7, 48) * (edges[4] - edges[1] - 12));
+      const bw = Math.round((8 + hash(i, 8, 48) * 10) * k), bh = Math.round((5 + hash(i, 9, 48) * 5) * k);
+      boulder(b, bx, by, Math.max(4, bw), Math.max(3, bh), STRATA[by < edges[2] ? 1 : by < edges[3] ? 2 : 3]);
     }
-    speckle(b, 0, w, bed, bot - bed, D.bedHi, 0.03, 42);
+    // bedrock: jointed rock. Wavy bedding planes with lit lips, offset slanting vertical joints, cool tone at depth
+    b.r(0, bed - 1, w, 1, D.dark);
+    b.r(0, bed, w, bot - bed, D.bed);
+    const half = bed + Math.round((bot - bed) * 0.55);
+    b.r(0, half, w, bot - half, mix(D.bed, BED_COOL, 0.6)); ditherRows(b, 0, w, even(half - 3), 6, D.bed, mix(D.bed, BED_COOL, 0.6));
+    speckle(b, 0, w, bed, bot - bed, D.bedHi, 0.03, 42); speckle(b, 0, w, bed, bot - bed, D.bedSh, 0.035, 49);
+    const bh2 = Math.max(5, Math.round(12 * k)), planes = [];
+    for (let j = 0; bed + j * bh2 < bot + bh2; j++) planes.push(x => bed + j * bh2 + Math.round((1.6 * Math.sin(x * 0.055 / k + j * 2.1) + 0.9 * Math.sin(x * 0.17 / k + j)) * k));
+    for (let j = 1; j < planes.length; j++) {
+      for (let x = 0; x < w; x++) {
+        const yy = planes[j](x); if (yy >= bot) continue;
+        if (hash(x >> 3, j, 43) < 0.12) continue;                         // broken plane
+        b.px(x, yy, D.bedSh); if (yy + 1 < bot && hash(x >> 2, j, 44) < 0.35) b.px(x, yy + 1, mix(D.bedSh, BED_COOL, 0.4));
+        if (hash(x >> 2, j, 45) < 0.45) b.px(x, yy - 1, D.bedHi);         // lit lip above the plane
+      }
+    }
+    for (let j = 0; j < planes.length - 1; j++) {                         // vertical joints between planes j and j+1, offset per course, slight slant
+      for (let x = Math.floor(hash(j, 0, 46) * 20 * k); x < w; x += Math.round((16 + hash(x, j, 46) * 26) * k)) {
+        const y0 = planes[j](x), y1 = planes[j + 1](x), slant = hash(x, j, 47) < 0.3 ? -1 : hash(x, j, 47) > 0.7 ? 1 : 0; let xx = x;
+        for (let yy = y0 + 1; yy < Math.min(y1, bot); yy++) { if ((yy - y0) % 4 === 0) xx += slant; b.px(xx, yy, D.bedSh); if (hash(xx, yy, 50) < 0.4) b.px(xx + 1, yy, D.bedHi); }
+      }
+    }
+    for (let i = 0; i < w / 40; i++) { const x = Math.floor(hash(i, 2, 51) * (w - 3)), yy = bed + 2 + Math.floor(hash(i, 3, 51) * (bot - bed - 4)); b.r(x, yy, 2, 1, D.bedHi); b.px(x + 2, yy + 1, D.bedSh); } // chips
   }
   function rockCutFace(b, G) { // presplit rock cut on the far left once clearing is done (stage >= 1)
     const R = C.rock, [x0, x1, y0] = G.rockCut, y1 = G.grassTop;

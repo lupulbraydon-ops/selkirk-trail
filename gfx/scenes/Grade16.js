@@ -29,6 +29,8 @@
   };
   const SCENE_W = 320, SCENE_H = 186, BENCH_TOP = 80, BANK_TOP = 92, TEX_TOP = 96, BEDROCK = 168;
   const BLADE_DX = 32;   // blade column = gx + 16 in the 160 grid (bxCol in the game logic), doubled
+  const STAKE_PAL = { P: '#e089b4', R: '#c05070', n: '#6a4a2a', k: '#3a2a10' };   // calmer flagging, brown lath outline instead of ink
+  const EDGE_ON = '#00ff66', EDGE_OFF = '#dcdcdc';                                   // cutting-edge indicator on the moldboard bottom
 
   // ---- helpers ----
   function hash(x, y, s) { // deterministic 0..1 per (x, y, seed) so bakes are stable frame to frame
@@ -151,7 +153,7 @@
     }
 
     // grade stakes on the offset line (behind the section; the string runs 8px below the lath top)
-    for (let c = 8; c < 160; c += 30) blit16('string_line_stake', c * 2, design[c] * 2 + 6);
+    for (let c = 8; c < 160; c += 30) blit16('string_line_stake', c * 2, design[c] * 2 + 6, { pal: STAKE_PAL });
 
     // the cut: one 2px strip per old column, sliced out of the dirt texture
     const tex = bakeRows('grade16_dirt', TEX_TOP, SCENE_H, drawDirtTexture);
@@ -188,6 +190,8 @@
     L(gx2 + 41, circleY, mx + 4.5, by2 - 7, C.steelSh, 1.2); L(gx2 + 49, circleY, mx + 17.5, by2 - 7, C.steelSh, 1.2);
     L(gx2 + 40.5, circleY, mx + 4, by2 - 7, C.steelHi, 0.5); L(gx2 + 48.5, circleY, mx + 17, by2 - 7, C.steelHi, 0.5);
     blit16('moldboard', mx, by2);
+    const onGrade = Math.abs(m.by - design[clampCol(bxCol)]) <= 1;                   // same rule as the logic: within 1 row of design at the blade column
+    P(mx + 1, by2 - 1, 22, 1, onGrade ? EDGE_ON : EDGE_OFF);
     // spill heap rolling off the trailing (left) end of the blade
     if (m.phase !== 'intro') {
       const hx = mx - 6, frame = (t * 12) | 0;

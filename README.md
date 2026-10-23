@@ -68,7 +68,7 @@ To update: edit index.html, then `git add -A && git commit -m "..." && git push`
 
 Since 2026-09-23 the game renders in a "16-bit" style: the site scene is a 640x372 grid at PX=2 and the mini-games 320x186 at PX=4.
 - `gfx/blit16.js`: sprite blitter (pre-renders each sprite once to an offscreen canvas).
-- `gfx/sprites/*.js`: 58 sprites as ASCII row grids with per-sprite palettes (format and style guide in `gfx/BRIEF.md`). Validate with `node gfx/validate.js` (PREVIEW=1 prints them).
+- `gfx/sprites/*.js`: 60 sprites as ASCII row grids with per-sprite palettes (format and style guide in `gfx/BRIEF.md`). Validate with `node gfx/validate.js` (PREVIEW=1 prints them).
 - `gfx/terrain16.js`, `gfx/structures16.js`: procedural sky/mountains/ground/creek/road and abutments/girders/multiplate/crane boom, baked once per state.
 - `gfx/scenes/*16.js`: one pure renderer per mini-game (renderMGLoad16 etc.); game logic stays in index.html.
 - `build-artifact.js` inlines all of these into one file for the claude.ai Artifact.
