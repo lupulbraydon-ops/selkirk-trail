@@ -534,7 +534,7 @@ function drawScene(v,t){
  blit16('cone',140,200,{pal:spal('cone')});blit16('cone',432,200,{pal:spal('cone')});
  if(st<5)blit16('barricade',220,200,{pal:spal('barricade',{A:night?(Math.sin(t*4)>0?'#ffb000':'#8a6a00'):'#ffd400'})});
  // ---- crew (base 200), then extras (Andy etc.)
- let i=0;for(const p of v.party){if(p.alive===false)continue;if(p.name==='Joe'&&fa>0)continue;const bob=mv?((Math.floor(t*4+i)%2)?-2:0):(Math.sin(t*(1.1+(i%3)*.25)+i*1.7)>.55?-1:0);const k=crewKind(p,i);blit16(k,132+i*13,200+bob,{pal:spal(k,crewPal16(p))});i++;}
+ let i=0;for(const p of v.party){if(p.alive===false)continue;if(p.name==='Joe'&&fa>0)continue;const bob=mv?((Math.floor(t*4+i)%2)?-2:0):(Math.sin(t*(1.1+(i%3)*.25)+i*1.7)>.55?-1:0);const sip=!mv&&!p.clip&&!p.tie&&Math.sin(t*0.37+i*2.1)>0.9;const k=sip?'person_sip':crewKind(p,i);blit16(k,132+i*13,200+(sip?0:bob),{pal:spal(k,crewPal16(p))});i++;}
  v.extras.forEach((e,j)=>{const k=crewKind(e,j+2);const bob=mv?0:(Math.sin(t*(1.2+(j%2)*.3)+j*2.3+.9)>.55?-1:0);blit16(k,e.x*2,200+bob,{pal:spal(k,crewPal16(e))});});
  // ---- night: additive lights (crane tip work light, headlights, dozer lamp, barricade flasher, moon glow)
  if(night){
@@ -878,14 +878,16 @@ function hud(){ctx.save();ctx.shadowColor='#000';ctx.shadowBlur=0;ctx.shadowOffs
  else{const left=m.deadline-S.week;line=`NEXT: ${m.name.toUpperCase()} (KM ${m.km}, DEADLINE WEEK ${m.deadline}, ${left} WEEK${left===1?'':'S'} LEFT)`;if(left<=3)col='#ffb000';}
  txt(line,16,36,26,col,null,true);
  let ty=8;for(const o of TOASTS){txt(o.text,1264,ty,30,o.col,'right',true);ty+=30;}ctx.restore();}
-function box(){P(0,SH,SW,240-SH,'#000');ctx.fillStyle='#000';ctx.fillRect(0,SH*PX,1280,960-SH*PX);ctx.strokeStyle='#fff';ctx.lineWidth=6;ctx.strokeRect(27,757,1226,186);ctx.lineWidth=2;ctx.strokeRect(39,769,1202,162);}
+// box(ext): the text box; ext (canvas px) extends it upward over the scene when a menu needs more room than 168px (phones: nothing below 24px)
+function box(ext){ext=ext||0;const top=SH*PX-ext;ctx.fillStyle='#000';ctx.fillRect(0,top,1280,960-top);ctx.strokeStyle='#fff';ctx.lineWidth=6;ctx.strokeRect(27,top+13,1226,930-top);ctx.lineWidth=2;ctx.strokeRect(39,top+25,1202,906-top);}
 function boxText(text,hint,opts){box();const o=opts||{};let size=36;let ls=wrap(text,66);if(ls.length>4){size=30;ls=wrap(text,80);}if(ls.length>5){size=26;ls=wrap(text,92);}
  const lh=size*0.92;let y=o.top||(hint?778:790);if(!hint&&ls.length<4)y=790+(4-ls.length)*lh/2;
  for(const l of ls){txt(l,640,y,size,'#fff','center');y+=lh;}
  if(hint)txt(hint,640,905,30,'#bdbdbd','center');}
-function boxMenu(title,items,sel,extra){box();let y=772;let size=items.length>7?21:items.length>5?27:30;let tl=title?wrap(title,Math.floor(2400/size)):[];
- // shrink until the title lines and the items fit in the box (772..940)
- while(size>21&&(tl.length+items.length)*size*0.95>168){size-=3;tl=title?wrap(title,Math.floor(2400/size)):[];}
+function boxMenu(title,items,sel,extra){let size=items.length>5?27:30;let tl=title?wrap(title,Math.floor(2400/size)):[];
+ // shrink to 24px at most; past that the box grows upward instead (772..940 is the normal text area)
+ while(size>24&&(tl.length+items.length)*size*0.95>168){size-=3;tl=title?wrap(title,Math.floor(2400/size)):[];}
+ const need=(tl.length+items.length)*size*0.95+(extra?30:0);const ext=Math.max(0,Math.ceil(need-168));box(ext);let y=772-ext;
  for(const l of tl){txt(l,640,y,size,'#fff','center');y+=size;}
  items.forEach((it,i)=>{const on=i===sel;txt((on?'> ':'  ')+(i+1)+'. '+it,80,y,size,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-4,y1:y+size*0.95,key:String(i+1)});y+=size*(items.length>7?0.9:0.95);});
  if(extra)txt(extra,640,915,26,'#bdbdbd','center');}
@@ -900,7 +902,7 @@ const DRAW={
  mgIntro(t){const m=S.mg;MG_DRAW[m.type](t);boxText(MG_INTRO[m.type],TOUCH?'Tap to start.':'Press ENTER to start.');},
  mgPhone(t){drawMGPhone(t);if(S.mg){box();txt(TOUCH?'Tap the answer. Fast.':'Press 1, 2 or 3. Fast.',640,830,34,'#fff','center');}},
  mgPump(t){drawMGPump(t);if(S.mg){box();txt(TOUCH?'TAP TAP TAP to pump. Keep the water under the yellow line.':'Mash SPACE to pump. Keep the water under the yellow line.',640,830,34,'#fff','center');}},
- mgPaper(t){drawMGPaper(t);if(S.mg){box();ctx.strokeStyle='#ff6060';ctx.lineWidth=4;ctx.strokeRect(80,790,500,110);ctx.strokeStyle='#60ff90';ctx.strokeRect(700,790,500,110);txt('SHRED',330,812,60,'#ff6060','center');txt('SUBMIT TO MEL',950,812,60,'#60ff90','center');txt(TOUCH?'tap the left side':'LEFT arrow',330,872,22,'#bdbdbd','center');txt(TOUCH?'tap the right side':'RIGHT arrow or ENTER',950,872,22,'#bdbdbd','center');HIT.push({x0:0,x1:640,y0:0,y1:960,key:'shred'});HIT.push({x0:640,x1:1280,y0:0,y1:960,key:'submit'});}},
+ mgPaper(t){drawMGPaper(t);if(S.mg){box();ctx.strokeStyle='#ff6060';ctx.lineWidth=4;ctx.strokeRect(80,790,500,110);ctx.strokeStyle='#60ff90';ctx.strokeRect(700,790,500,110);txt('SHRED',330,812,60,'#ff6060','center');txt('SUBMIT TO MEL',950,812,60,'#60ff90','center');txt(TOUCH?'tap the left side':'LEFT arrow',330,872,26,'#bdbdbd','center');txt(TOUCH?'tap the right side':'RIGHT arrow or ENTER',950,872,26,'#bdbdbd','center');HIT.push({x0:0,x1:640,y0:0,y1:960,key:'shred'});HIT.push({x0:640,x1:1280,y0:0,y1:960,key:'submit'});}},
  mgBlast(t){drawMGBlast(t);if(S.mg){box();txt(S.mg.phase==='play'?(TOUCH?'TAP to lock the charge when it is in the green band.':'SPACE to lock the charge when it is in the green band.'):'Stand back.',640,830,34,'#fff','center');}},
  mgPick(t){drawMGPick(t);if(S.mg){box();txt(TOUCH?'TAP to lower. Both ends on the green seats. Joe is watching.':'SPACE to lower. Both ends on the green seats. Joe is watching.',640,830,34,'#fff','center');}},
  mgMenu(t){drawScene(viewFromState(),t);hud();boxMenu('',["Lenny: load the rock trucks (excavator)","Tanya: blast the rock cut (powder)","Joe: set the girders (crane)","Louie: cut the grade (grader)","Harsh: the ATP package (paperwork)","Scott: the phone","Adam: dewatering (culvert trench)","Lenny: roll the mat (paving)",'Back'].map((l,i)=>i<8&&S.played[MG_TYPES_MENU[i]]?l+`  (level ${S.played[MG_TYPES_MENU[i]]+1})`:l),S.sel,'');},
@@ -944,8 +946,9 @@ const DRAW={
   txt(`EllisDon loss so far: ${fmtFull(S.loss)}   (target: less than $45,000,000, ha)`,640,y,32,'#ffd400','center');txt(`Progress: km ${S.km.toFixed(2)} of 6.  Fired by Andy: ${S.fired}.  Quit: ${S.quit}.`,640,y+40,32,'#fff','center');
   box();txt(TOUCH?'Tap to return.':'Press ENTER to return.',640,830,32,'#bdbdbd','center');},
  msg(t){const m=S.queue[0];drawScene(viewFromState({extras:m&&m.andy?[{x:118,hat:'#fff',shirt:'#1d2b4f',pants:'#1d2b4f',tie:true}]:[]}),t);hud();
-  if(m.ch){box();let size=m.ch.length>6?22:m.t.length>90?26:30;let ls=wrap(m.t,size>26?78:size>22?92:104);let y=m.ch.length>6?766:770;for(const l of ls){txt(l,640,y,size,'#fff','center');y+=size*0.9;}y+=6;
-   const cs=m.ch.length>7?18:m.ch.length>6?20:m.ch.length>4?24:28;m.ch.forEach((c,i)=>{const on=i===S.sel;txt((on?'> ':'  ')+(i+1)+'. '+c.l,90,y,cs,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-3,y1:y+cs-1,key:String(i+1)});y+=cs-1;});}
+  if(m.ch){let size=m.ch.length>6?26:m.t.length>90?26:30;let ls=wrap(m.t,size>26?78:92);const cs=m.ch.length>4?24:28;
+   const need=ls.length*size*0.9+6+m.ch.length*(cs-1)+8;const ext=Math.max(0,Math.ceil(need-168));box(ext);let y=770-ext;for(const l of ls){txt(l,640,y,size,'#fff','center');y+=size*0.9;}y+=6;
+   m.ch.forEach((c,i)=>{const on=i===S.sel;txt((on?'> ':'  ')+(i+1)+'. '+c.l,90,y,cs,on?'#ffd400':'#fff');HIT.push({x0:40,x1:1240,y0:y-3,y1:y+cs-1,key:String(i+1)});y+=cs-1;});}
   else boxText(m.t,HINT);},
  milestone(t){drawScene(viewFromState(),t);hud();const m=S.msCur;const late=S.late;
   boxMenu(`You have reached ${m.name}.  Week ${S.week}.  Andy wanted it by Week ${m.deadline}.  ${late>0?'You are '+late+' weeks late. Andy knows.':'You are on time. Andy is suspicious.'}`,['Continue on the trail','Talk to Mel','Look around',"Visit the yard (Finning's truck is here)"],S.sel,'');},

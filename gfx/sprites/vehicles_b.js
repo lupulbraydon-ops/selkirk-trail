@@ -6,10 +6,10 @@ var SPR16 = window.SPR16 = window.SPR16 || {};
 
 var VEH_B_PAL = {Y:"#ffe466", y:"#f2c400", s:"#c99d00", d:"#8a6a00", T:"#1a1c1e", u:"#3a3e45", h:"#555555", c:"#c8ccd2", C:"#7c8289", D:"#4a4f56", g:"#d8f0ff", G:"#9fd8ff", b:"#5a9ad0", W:"#ffffff", k:"#141018", A:"#ffb000", o:"#ff7a00", p:"#a06a30", l:"#8f5a26", m:"#7a4a1c", M:"#5e3812", n:"#3f2408", R:"#c4c4c4", r:"#9a9a9a", E:"#6f6f6f"};
 
-// ---- rock_truck_empty: CAT 740 articulated rock truck, empty, facing LEFT. Cab with ROPS + beacon + mirror, exhaust stack, hitch, ribbed duck-tail box with lifted rear lip, 3 lugged tires. ----
+// ---- rock_truck_empty: CAT 740 articulated rock truck, empty, facing LEFT. 60x43 (v17: body and tyre rows doubled so the truck stands ~1.7 crew tall). Cab with ROPS + beacon + mirror, exhaust stack, hitch, ribbed duck-tail box with lifted rear lip, 3 lugged tires. ----
 SPR16.rock_truck_empty = {
-  w: 60, h: 36,
-  anchor: [0, 36],
+  w: 60, h: 43,
+  anchor: [0, 43],
   pal: VEH_B_PAL,
   rows: [
     "................kkkk........................................",
@@ -23,11 +23,15 @@ SPR16.rock_truck_empty = {
     "...kYDDYYYYYssssssssyssyyyyyyyYsyyyyyyYsyyyyyyYsyyyyyyyYysk.",
     "..kYyyyyyyyyyyyskkkkyysYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYysk.",
     ".kDYggGsgggggGysk..kyysyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyYysk.",
+    ".kDYggGsgggggGysk..kyysyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyYysk.",
     ".kcYgGGsgWGGGbysk..kyysYyyyyyyYsyyyyyyYsyyyyyyYsyyyyyyyYysk.",
+    ".kDYgGGsgGGGGbysk..kyysYyyyyyyYsyyyyyyYsyyyyyyYsyyyyyssYdsk.",
     ".kDYgGGsgGGGGbysk..kyysYyyyyyyYsyyyyyyYsyyyyyyYsyyyyyssYdsk.",
     "kYYyGGbsGGGGbbyskkkkyysYyyyyyyYsyyyyyyYsyyyyyyYsyyyssssYysk.",
     "kYyyGbbsbbbbbbyskCDDyysYyyyyyyYsyyyyyyYsyyyyyyYsyssssssdddk.",
+    "kYyyGbbsbbbbbbyskCDDyysYyyyyyyYsyyyyyyYsyyyyyyYsyssssssdddk.",
     "kDCyyyyyssssssyskCDDyysYyyyyyyYsyyyyyyYsyyyyyyYssssssddkkk..",
+    "kcDyyyyyyyyyyyyskCDDyysYyyyyyyYsyyyyyyYsyyyyysYssssddkk.....",
     "kcDyyyyyyyyyyyyskCDDyysYyyyyyyYsyyyyyyYsyyyyysYssssddkk.....",
     "kDDssssdsssssssskCcDyysYyyyyyyYsyyyyyyYsyyyssssssddkk.......",
     "kcDssssssssssssskCDkyysYyyyyyyYsyyyyyyYsyssssssddkk.........",
@@ -37,9 +41,12 @@ SPR16.rock_truck_empty = {
     ".kCCDkuTTTTTTTTTkCDDddddddduTTTTTTTTTddddDDuTTTTTTTTTk......",
     "..kkDuTTTTccTTTTkDDMMDDMMDuTTTTccTTTTkDDMDuTTTTccTTTTkk.....",
     ".kmCuTTTcchhhhTTTTDDDDDDMMTMTcchhhhTTTTDDuTMTcchhhhTTTTk....",
+    ".kmCuTTTcchhhhTTTTDDDDDDMMTMTcchhhhTTTTDDuTMTcchhhhTTTTk....",
     "..kkkMTTchhhhhTMTMDDDDDDDkTTTchhhhhTTTuDDkTTMchhhhhTTTuk....",
     "...kuTTchhcDhhDTTTkkkkkkkMTTchhcDhhDTTMkkuTTchhcDhhDTTTk....",
+    "...kuTTchhcDhhDTTTkkkkkkkMTTchhcDhhDTTMkkuTTchhcDhhDTTTk....",
     "...kuTTchhDDhhDTTTk.....kuTTchhDDhhDTTTkkuTTchhDDhhMTTTk....",
+    "...kuTMThhhhhDTTTkk.....kuMTThhhhhDTTTkkkuTTThhhhhDTTTkk....",
     "...kuTMThhhhhDTTTkk.....kuMTThhhhhDTTTkkkuTTThhhhhDTTTkk....",
     "...kuTTThhhhDDTTTTk.....kuTTThhhhDMMMTMkkuTTThhhhDDTTTTk....",
     "....kkTTTTDDMTTTuk.......kkTTTTDDTTTTuk..kkTTTMDDTTTTuk.....",
@@ -53,8 +60,8 @@ SPR16.rock_truck_empty = {
 
 // ---- rock_truck_loaded: Same truck, heaped rock/dirt load (hi/light/base/shade + a few grey rocks). ----
 SPR16.rock_truck_loaded = {
-  w: 60, h: 36,
-  anchor: [0, 36],
+  w: 60, h: 43,
+  anchor: [0, 43],
   pal: VEH_B_PAL,
   rows: [
     "................kkkk....kkkppkkpppkkkppkkk..................",
@@ -68,11 +75,15 @@ SPR16.rock_truck_loaded = {
     "...kYDDYYYYYssssssssyssyyyyyyyYsyyyyyyYsyyyyyyYsyyyyyyyYysk.",
     "..kYyyyyyyyyyyyskkkkyysYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYysk.",
     ".kDYggGsgggggGysk..kyysyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyYysk.",
+    ".kDYggGsgggggGysk..kyysyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyYysk.",
     ".kcYgGGsgWGGGbysk..kyysYyyyyyyYsyyyyyyYsyyyyyyYsyyyyyyyYysk.",
+    ".kDYgGGsgGGGGbysk..kyysYyyyyyyYsyyyyyyYsyyyyyyYsyyyyyssYdsk.",
     ".kDYgGGsgGGGGbysk..kyysYyyyyyyYsyyyyyyYsyyyyyyYsyyyyyssYdsk.",
     "kYYyGGbsGGGGbbyskkkkyysYyyyyyyYsyyyyyyYsyyyyyyYsyyyssssYysk.",
     "kYyyGbbsbbbbbbyskCDDyysYyyyyyyYsyyyyyyYsyyyyyyYsyssssssdddk.",
+    "kYyyGbbsbbbbbbyskCDDyysYyyyyyyYsyyyyyyYsyyyyyyYsyssssssdddk.",
     "kDCyyyyyssssssyskCDDyysYyyyyyyYsyyyyyyYsyyyyyyYssssssddkkk..",
+    "kcDyyyyyyyyyyyyskCDDyysYyyyyyyYsyyyyyyYsyyyyysYssssddkk.....",
     "kcDyyyyyyyyyyyyskCDDyysYyyyyyyYsyyyyyyYsyyyyysYssssddkk.....",
     "kDDssssdsssssssskCcDyysYyyyyyyYsyyyyyyYsyyyssssssddkk.......",
     "kcDssssssssssssskCDkyysYyyyyyyYsyyyyyyYsyssssssddkk.........",
@@ -82,9 +93,12 @@ SPR16.rock_truck_loaded = {
     ".kCCDkuTTTTTTTTTkCMMddddddduTTTTTTTTTddddMDuTTTTTTTTTk......",
     "..kkDuTTTTccTTTTkDDMMDDDMMuTTTTccTTTTkDDMDuTTTTccTTTTkk.....",
     ".kCCuTTTcchhhhTMTTDDDDDDDuTTTcchhhhTTTTMDMTTTcchhhhTTMTk....",
+    ".kCCuTTTcchhhhTMTTDDDDDDDuTTTcchhhhTTTTMDMTTTcchhhhTTMTk....",
     "..kkkMTTchhhhhMMTuDMDDDDMkTMTchhhhhTTTuDDkTTTchhhhhTTTuk....",
     "...kuTTchhcDhhDMTTkkkkkkkuTTchhcDhhDTTTkkuTTchhcDhhMTTTk....",
+    "...kuTTchhcDhhDMTTkkkkkkkuTTchhcDhhDTTTkkuTTchhcDhhMTTTk....",
     "...kuMTchhDMhhDTTTk.....kuTTchhMDhhDTTTkkuMTchhDDhhDMTTk....",
+    "...kuTTThhhhhDTTMkk.....kuTTThhhhhDTTTkkkuTMMhhhhhDTTTkk....",
     "...kuTTThhhhhDTTMkk.....kuTTThhhhhDTTTkkkuTMMhhhhhDTTTkk....",
     "...kMTTThhhhDMMTTTk.....kuTMThhhhDMMMTTkkuTTThhhhDDTTTTk....",
     "....kkMTTTDDTTMMuk.......kkMTTTDDMMTTMk..kkTMTTDDTTTTuk.....",

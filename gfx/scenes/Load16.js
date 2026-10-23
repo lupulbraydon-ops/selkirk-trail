@@ -203,7 +203,7 @@
     if (loads >= 6) { blit('rock_truck_loaded', tx, GROUND); return; }
     blit('rock_truck_empty', tx, GROUND);
     const Hh = Math.round(loads / 6 * 7); if (Hh <= 0) return;
-    const x0 = tx + 22, x1 = tx + 56, mid = (x0 + x1) / 2, half = (x1 - x0) / 2, rim = GROUND - 30;   // rim top = sprite row 6
+    const x0 = tx + 22, x1 = tx + 56, mid = (x0 + x1) / 2, half = (x1 - x0) / 2, rim = GROUND - ((W.SPR16 && W.SPR16.rock_truck_empty) ? W.SPR16.rock_truck_empty.h : 36) + 6;   // rim top = sprite row 6
     for (let d = Hh; d >= 1; d--) {
       const y = rim - d, u = half * Math.sqrt(Math.max(0, 1 - (d - 0.5) / Hh)), xa = Math.round(mid - u), xb = Math.round(mid + u), w = xb - xa; if (w <= 0) continue;
       P(xa, y, w, 1, D.base); P(xa, y, Math.max(1, Math.round(w * 0.35)), 1, D.light); P(xb - Math.max(1, Math.round(w * 0.22)), y, Math.max(1, Math.round(w * 0.22)), 1, D.sh);
