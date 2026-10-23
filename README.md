@@ -8,7 +8,7 @@ Twelve kilometres of highway, one bridge, one multiplate wildlife crossing, and 
 Open `index.html` in any browser (double-click it). No install, no build. The 16-bit art lives in `gfx/` (sprites as ASCII grids, procedural terrain and structures, one renderer per mini-game scene); index.html loads them with plain script tags.
 Internet is only needed for the pixel font; without it the game falls back to Courier New.
 
-Keys: ENTER to continue, number keys or arrow keys to choose, LEFT/RIGHT to buy or return in the yard.
+Keys: ENTER to continue, number keys or arrow keys to choose, LEFT/RIGHT to buy or return in the yard. Pick a role on the second screen: EASY (Senior PM, $8M), NORMAL (PM, $5M) or HARD (Co-op, $3M, triple points).
 
 ## Mini-games
 
@@ -19,8 +19,28 @@ Keys: ENTER to continue, number keys or arrow keys to choose, LEFT/RIGHT to buy 
 - **Harsh's ATP Package**: papers land on the desk; real cut sheets go right (submit to Mel), Harsh's nonsense goes left (shredder). Three pieces of nonsense reach Mel and the ATP is denied.
 - **Scott's Phone**: 100 calls waiting. Each call shows a question from Mel, Andy, the crew, the plant or a trucker; pick the answer a site super would give (tap or 1/2/3) before the bar runs out. Wrong ones get back to Andy. Sixty seconds.
 - **Adam's Dewatering**: tap to work the pump and keep the culvert trench below the yellow bed line while the labour crew places six sections. Rain bursts, and the pump loses prime if you stop for two seconds.
+- **Roll the Mat**: the paver lays asphalt and drives itself; you drive the roller with LEFT/RIGHT or by dragging sideways. Compact the mat while it is inside the green window behind the paver (too close is too hot and shoves, too far back has gone cold). The paver stops when a truck backs into the hopper; stop with it, and do not hit it. 85% density is a clean job, 60% is adequate, under that is mill and re-pave.
 
-All seven are scheduled once per job, in order, packed into the first 3.5 km (phone 0.35, excavator 0.8, ATP package 1.2, blasting 1.6, culvert 2.1, crane pick 2.5, grader 3.4). Playing one from the site menu counts as its scheduled play. A random "mini-game" event can add extra plays, but it only repeats a game once all seven have been played. The title screen also has "Just play the mini-games" for an arcade mode with no job state.
+Every game starts with a five-second PRACTICE beat with the goal on screen, then resets and counts for real. Each repeat play of a game is one level higher: faster (bucket arm, charge, calls, paper), narrower bands, more rain, and from level 3 the ATP package includes decoy cut sheets from the wrong job.
+
+All eight are scheduled once per job, in order, spread over the six kilometres (phone 0.35, excavator 0.8, ATP package 1.2, blasting 1.6, culvert 2.1, crane pick 2.6, grader 4.4, paving 5.4). Playing one from the site menu counts as its scheduled play. A random "mini-game" event can add extra plays (at the next level), but it only repeats a game once all eight have been played. Games whose crew member is gone are skipped: no Adam, no dewatering; no Harsh, no ATP package; no Joe, no crane pick. The title screen also has "Just play the mini-games" for an arcade mode with no job state; levels carry across arcade plays.
+
+## Milestones, Andy, and the crew
+
+Each milestone (except paving) opens with a decision, river-crossing style: three options, and the odds the crew quotes are the real odds (Lenny's "seventy percent clean" shot on Gerald is 70%). The sure thing always costs a week or two.
+
+Miss a deadline and Andy is on site asking for a name. You pick who goes, with the consequence spelled out, or take the blame yourself: the crew gets a coffee and Andy's tolerance for lateness drops by a week (he kills you at 8 weeks late by default, `CFG.lateKill`). Losing people matters now:
+- Scott: site slows 5%, Andy's calls hit the crew twice as hard.
+- Lenny: earthworks slow 10%.
+- Louie: no more pry-bar fixes (and the pry-bar roll is 70% while he is around).
+- Adam: no labour crew, so no dewatering game, no toad holds, no wrong ditches.
+- Joe: bridge at 60% speed, nobody to set the girders.
+- Harsh: no paperwork at all, which removes both the NCRs and the surprise change orders.
+- Tanya: no shutdowns or four-hour meetings, but every injury costs 50% more health.
+
+Whoever goes gets a cross with an epitaph you write (32 characters). Epitaphs persist in the browser and show up as roadside graves in later runs once you pass the km where it happened; "Look around" at a milestone reads the nearest one. "Call Andy" has a 35% chance of winning $500,000 of allowance (once every eight weeks); otherwise it costs the crew health. Events you have seen are weighted down (x0.25 per sighting) and the recurring ones (the CN train, the toad, the Denny's breakfast, the coffee) change text each time.
+
+The HUD shows weeks left to the deadline, turns orange when you are late with how many weeks Andy tolerates, and shows every money and progress line item top-right as it happens (the weekly burn is not a line item).
 
 ## The yard
 
@@ -33,13 +53,15 @@ Week 1 is the Golden yard: list prices, the allowance is the limit. At every mil
 `ST.CFG` the tuning knobs (speed, event rate, burn rate, how late Andy tolerates), and
 `MILESTONES[i].deadline` the deadlines.
 
-## Tuning (v2)
+## Tuning (v3)
 
-Simulated 300 runs per strategy with a dumb auto-player (never rests, always picks option 1, mini-games score the middle tier), driving `tick()` directly in the browser console:
-- $5.0M PM, dozer + 4 trucks + grader, 60,000 L, 1,200 cups, never revisits the yard: 76% survive, 27% also under $45M, average loss $44.3M.
-- Same, but tops up diesel to 40,000 L and coffee to 600 at each milestone and buys the crane at the Rock Cut: 97% survive, 91% under $45M, average loss $38.5M, about $1.8M spent at the field yard.
-- $8.0M Senior PM, full fleet: 100% survive, 98% under $45M.
-Change `CFG` at the top of the script section (speed, event rate, burn, how late Andy tolerates) or `SITE_MARKUP` to adjust.
+Simulated 300 runs per strategy with a dumb auto-player (always picks option 1, which at every milestone is the "sure thing" and at Andy's firing is the first name on the list; mini-games score the middle tier), driving `tick()` directly in the browser console:
+- NORMAL ($5.0M), dozer + 4 trucks + grader, never revisits the yard: 32% survive, 3% also under $45M.
+- NORMAL, same fleet, tops up diesel/coffee at each milestone and buys the crane at the Rock Cut: 78% survive, 66% under $45M, average loss $41.7M.
+- NORMAL, same, Strenuous pace and a rest week whenever someone drops under 35 health: 100% survive, 83% under $45M, finishes around week 55.
+- EASY ($8.0M), full fleet, visits the yard: 95% survive, 90% under $45M.
+- HARD ($3.0M), dozer + 2 trucks, never buys more: 0% survive. Buy two more trucks and a grader at the first milestone on EllisDon's account, Strenuous, rest when tired: 100% survive, 67% under $45M. That is the HARD game: the money target, not survival.
+Change `CFG` at the top of the script section (speed, event rate, burn, how late Andy tolerates), `SITE_MARKUP`, or the odds and week costs inside `CROSSINGS` to adjust.
 
 ## Cast
 
@@ -66,7 +88,7 @@ To update: edit index.html, then `git add -A && git commit -m "..." && git push`
 
 ## Graphics (16-bit)
 
-Since 2026-09-23 the game renders in a "16-bit" style: the site scene is a 640x372 grid at PX=2 and the mini-games 320x186 at PX=4.
+Since 2026-09-23 the game renders in a "16-bit" style (v17 polish on 2026-10-23: hue-shifted shadows, snow caps and smoke haze, taller trees, strata and boulders in the cross-section, light pools at night, crew idle bob, screen shake and hit flash in the mini-games): the site scene is a 640x372 grid at PX=2 and the mini-games 320x186 at PX=4.
 - `gfx/blit16.js`: sprite blitter (pre-renders each sprite once to an offscreen canvas).
 - `gfx/sprites/*.js`: 60 sprites as ASCII row grids with per-sprite palettes (format and style guide in `gfx/BRIEF.md`). Validate with `node gfx/validate.js` (PREVIEW=1 prints them).
 - `gfx/terrain16.js`, `gfx/structures16.js`: procedural sky/mountains/ground/creek/road and abutments/girders/multiplate/crane boom, baked once per state.
