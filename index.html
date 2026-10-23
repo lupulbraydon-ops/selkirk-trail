@@ -468,9 +468,11 @@ function viewFromState(o){return Object.assign({km:S.km,night:S.pace===2,weather
 // ---------------- mini-games ----------------
 // Drawn at PX=8 on a 160x93 logical grid (same 1280x744 scene area). Update happens inside the draw using DT.
 let DT=0,lastMs=0;const KEYS=new Set();
-const MG_LOAD_TIME=30;
+const MG_LOAD_TIME=60;
+// Empty bucket swings back from the truck this much faster than the loaded swing out (see drawMGLoad).
+const MG_LOAD_RETURN=1.8;
 function startMG(type){S.moving=false;S.played=S.played||{};S.played[type]=(S.played[type]||0)+1;S.mg={type,phase:'intro',pointerDown:false,target:null};
- if(type==='load'){Object.assign(S.mg,{s:0,dir:1,omega:0.55,full:true,loads:0,trucks:0,spills:0,timeLeft:MG_LOAD_TIME,rocks:[],truckX:72,leaving:0,arriving:0,flash:0,flashTxt:''});}
+ if(type==='load'){Object.assign(S.mg,{s:0,dir:1,omega:0.65,full:true,loads:0,trucks:0,spills:0,timeLeft:MG_LOAD_TIME,rocks:[],truckX:72,leaving:0,arriving:0,flash:0,flashTxt:''});}
  else if(type==='blast'){const band=[];for(let i=0;i<8;i++){const c=18+Math.round(Math.random()*10);band.push([c-4,c+4]);}Object.assign(S.mg,{i:0,ch:0,dir:1,speed:26,charges:[],kind:[],band,parts:[],flash:0,flashTxt:'',t:0});}
  else if(type==='paper'){Object.assign(S.mg,{real:0,bs:0,shred:0,shredReal:0,timeLeft:30,doc:null,docLife:3.2,fly:0,flyDir:1,flash:0,flashTxt:''});}
  else if(type==='phone'){Object.assign(S.mg,{good:0,bad:0,missed:0,timeLeft:60,call:null,callLife:7,gap:0.3,flash:0,flashTxt:''});}
@@ -490,16 +492,16 @@ function excavator(x,base){shadowRow(x+1,24,base);P(x,base-6,26,6,C.grey5);P(x,b
  P(x+4,base-20,9,6,C.yellow2);P(x+4,base-20,9,1,C.steel3);P(x+4,base-19,1,5,C.ink);P(x+12,base-19,1,5,C.ink);P(x+5,base-19,7,4,C.glass);P(x+5,base-19,7,1,C.glassHi);P(x+11,base-19,1,4,C.glassSh);P(x+20,base-12,6,5,C.grey2);}
 function dumpBucket(){const m=S.mg;if(!m||m.phase!=='play'||m.leaving>0||m.arriving>0||!m.full)return;
  const [bx,by]=bucketPos(m.s);m.full=false;
- if(m.s>=0.84){m.loads++;for(let i=0;i<10;i++)m.rocks.push({x:bx-2+Math.random()*5,y:by,vy:10+Math.random()*10,floor:76-m.loads*1.2,c:i%3?C.dirt3:C.grey});
+ if(m.s>=0.84){m.loads++;m.dir=-1;for(let i=0;i<10;i++)m.rocks.push({x:bx-2+Math.random()*5,y:by,vy:10+Math.random()*10,floor:76-m.loads*1.2,c:i%3?C.dirt3:C.grey});
   m.flash=0.6;m.flashTxt='LOADED';
-  if(m.loads>=6){m.leaving=1.3;m.trucks++;}}
+  if(m.loads>=6){m.leaving=0.8;m.trucks++;}}
  else{m.spills++;m.flash=0.8;m.flashTxt='SPILL!';for(let i=0;i<10;i++)m.rocks.push({x:bx-3+Math.random()*7,y:by,vy:10+Math.random()*10,floor:85,c:i%2?C.grey3:C.grey2});
   if(m.spills>=4){m.phase='over';}}}
 function drawMGLoad(t){const m=S.mg;PX=8;try{
  if(m.phase==='play'){m.timeLeft-=DT;if(m.timeLeft<=0){m.timeLeft=0;m.phase='over';}
-  if(m.leaving>0){m.leaving-=DT;m.truckX+=60*DT;if(m.leaving<=0){m.leaving=0;m.arriving=1.2;m.truckX=170;m.loads=0;m.omega*=1.15;m.rocks=m.rocks.filter(r=>r.floor===85);}}
-  else if(m.arriving>0){m.arriving-=DT;m.truckX=Math.max(72,m.truckX-80*DT);if(m.arriving<=0){m.arriving=0;m.truckX=72;}}
-  m.s+=m.dir*m.omega*DT;if(m.s>=1){m.s=1;m.dir=-1;}if(m.s<=0){m.s=0;m.dir=1;m.full=true;}
+  if(m.leaving>0){m.leaving-=DT;m.truckX+=100*DT;if(m.leaving<=0){m.leaving=0;m.arriving=0.7;m.truckX=170;m.loads=0;m.omega*=1.08;m.rocks=m.rocks.filter(r=>r.floor===85);}}
+  else if(m.arriving>0){m.arriving-=DT;m.truckX=Math.max(72,m.truckX-140*DT);if(m.arriving<=0){m.arriving=0;m.truckX=72;}}
+  m.s+=m.dir*m.omega*(m.full?1:MG_LOAD_RETURN)*DT;if(m.s>=1){m.s=1;m.dir=-1;}if(m.s<=0){m.s=0;m.dir=1;m.full=true;}
   if(m.flash>0)m.flash-=DT;
   for(const r of m.rocks){if(r.y<r.floor){r.vy+=60*DT;r.y=Math.min(r.floor,r.y+r.vy*DT);}}
   if(m.rocks.length>60)m.rocks.splice(0,m.rocks.length-60);}
@@ -512,7 +514,7 @@ function drawMGLoad(t){const m=S.mg;PX=8;try{
  if(m.phase==='over')endLoad();}
 function endLoad(){const m=S.mg;const n=m.trucks;let text,fx={},bonus=0.05*n;
  if(m.spills>=4){text=`Tanya shut the pit down after your fourth spill. ${n} truck${n===1?'':'s'} loaded, ${m.spills} spills, one very long meeting about "line of fire".`;fx={weeks:1,health:-4,loss:m.spills*8000};}
- else if(n>=5){text=`${n} trucks loaded in thirty seconds. Lenny says "not bad", which from Lenny is a parade. Louie is sulking.`;fx={health:4,loss:m.spills*8000};}
+ else if(n>=5){text=`${n} trucks loaded in a minute. Lenny says "not bad", which from Lenny is a parade. Louie is sulking.`;fx={health:4,loss:m.spills*8000};}
  else if(n>=3){text=`${n} trucks loaded. Adequate. Scott has seen worse, mostly from Adam. ${m.spills?m.spills+' spill'+(m.spills>1?'s':'')+' at $8,000 a tire.':'No spills. Tanya is suspicious.'}`;fx={health:1,loss:m.spills*8000};}
  else{text=`${n} truck${n===1?'':'s'} loaded. The excavator operator has been called back from Calgary. Joe watched the whole thing from the abutment.`;fx={health:-2,loss:m.spills*8000};bonus=0.02*n;}
  mgFinish(text,fx,bonus);}
@@ -732,7 +734,7 @@ const MG_INTRO={phone:"SCOTT'S PHONE.  Scott: 'Hundred calls since six. You take
  paper:"HARSH'S ATP PACKAGE.  Harsh: 'The ATP package is due at noon. I have... most of it.' It is 11:20.\nPapers land on the desk one at a time. Real cut sheets go OUT to Mel (tap the right side, or RIGHT arrow). Harsh's nonsense goes in the SHREDDER (tap the left side, or LEFT arrow). Three pieces of nonsense reach Mel and the ATP is denied. Thirty seconds.",
  blast:"BLAST THE ROCK CUT.  Lenny: 'Holes are drilled. Powder truck's here. You're loading.'\nThe charge in each hole rises and falls. TAP (or SPACE) to lock it inside the green band. Too light leaves toe for the hoe ram. Too heavy is flyrock, and the pickup is parked right there. Eight holes, then Tanya blows the horn.",
  pick:"SET THE GIRDERS.  Joe is on the abutment, watching the seats.\nThe girder swings on the hook. TAP (or SPACE) to lower it, and it keeps swinging on the way down. Land both ends on the green seats. Three girders. Two in the creek and Tanya shuts down the lift.",
- load:"LOAD THE ROCK TRUCKS.  Lenny: 'The pit's backed up. Get in the excavator.'\nThe bucket swings from the pile to the truck. TAP (or SPACE) to dump when the bucket is over the box, when the bar turns green. Six buckets fills a truck. Spill four and Tanya shuts you down. Thirty seconds.",
+ load:"LOAD THE ROCK TRUCKS.  Lenny: 'The pit's backed up. Get in the excavator.'\nThe bucket swings from the pile to the truck. TAP (or SPACE) to dump when the bucket is over the box, when the bar turns green. Dump and the arm swings straight back for more. Six buckets fills a truck. Spill four and Tanya shuts you down. Sixty seconds.",
  grade:"CUT THE GRADE.  Lenny: 'Grade's yours. Don't embarrass me in front of Mel.'\nThe grader drives itself. You control the blade: drag up and down on the screen (or UP/DOWN keys). Shave the ground down to the yellow string line. High spots are red, overcuts are orange, and Mel counts both."};
 
 // ---------------- UI helpers ----------------

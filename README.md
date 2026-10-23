@@ -12,7 +12,7 @@ Keys: ENTER to continue, number keys or arrow keys to choose, LEFT/RIGHT to buy 
 
 ## Mini-games
 
-- **Load the Rock Trucks**: excavator timing game. Tap or SPACE when the bucket is over the box (bar turns green). Six buckets per truck, 30 seconds, four spills and Tanya shuts it down. Each truck loaded adds a little progress.
+- **Load the Rock Trucks**: excavator timing game. Tap or SPACE when the bucket is over the box (bar turns green). A dump sends the arm straight back to the pile, and the empty bucket swings back faster than the loaded one. Six buckets per truck, 60 seconds, four spills and Tanya shuts it down. Each truck loaded adds a little progress.
 - **Cut the Grade**: the grader drives itself; you set the blade with UP/DOWN or by dragging. Shave to the yellow string line. 80%+ on grade earns progress and Mel's silence; under 55% is a re-grade week.
 - **Blast the Rock Cut**: eight drill holes; the powder charge rises and falls, tap to lock it in the green band. Light = toe for the hoe ram, heavy = flyrock onto the pickup. Then Tanya's horn and the shot.
 - **Set the Girders**: crane pick with Joe on the abutment. The girder swings on the hook and keeps swinging while it lowers; tap to lower, land both ends on the green seats. Two in the creek and Tanya shuts down the lift.
